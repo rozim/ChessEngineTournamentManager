@@ -1,0 +1,47 @@
+dave@macbookpro ChessEngineTournamentManager % nice time  ./target/release/chess_tournament_manager --concurrency=2 --mini-matches=10 engines/maia3-??m-*.json engines/*nodes-1k.json engines/stockfish-nodes-10k.json  engines/stockfish-nodes-25k.json  engines/*nodes-100.json
+<es/stockfish-nodes-10k.json  engines/stockfish-nodes-25k.json  engines/*nodes-100.json
+Starting tournament: 18 engines, 10 mini-match(es)/pair from a book of 241670 positions, seed 8648106271500531279, concurrency 2
+Total games: 3060
+Total matches: 1530
+  Maia3-23m-1800 -> nodes 1; options: Elo=1800, MultiPV=1
+  Maia3-23m-2000 -> nodes 1; options: Elo=2000, MultiPV=1
+  Maia3-23m-2200 -> nodes 1; options: Elo=2200, MultiPV=1
+  Maia3-23m-2400 -> nodes 1; options: Elo=2400, MultiPV=1
+  Maia3-23m-2600 -> nodes 1; options: Elo=2600, MultiPV=1
+  Maia3-23m-2800 -> nodes 1; options: Elo=2800, MultiPV=1
+  Maia3-79m-1800 -> nodes 1; options: Elo=1800, MultiPV=1
+  Maia3-79m-2000 -> nodes 1; options: Elo=2000, MultiPV=1
+  Maia3-79m-2200 -> nodes 1; options: Elo=2200, MultiPV=1
+  Maia3-79m-2400 -> nodes 1; options: Elo=2400, MultiPV=1
+  Maia3-79m-2600 -> nodes 1; options: Elo=2600, MultiPV=1
+  Maia3-79m-2800 -> nodes 1; options: Elo=2800, MultiPV=1
+  Lc0-1k -> nodes 1000
+  Stockfish-Nodes-1k -> nodes 1000
+  Stockfish-Nodes-10k -> nodes 10000
+  Stockfish-Nodes-25k -> nodes 25000
+  Lc0-100 -> nodes 100
+  Stockfish-Nodes-100 -> nodes 100
+Early-draw adjudication: after move 34, within +-20cp for 8 moves
+Early-resign adjudication: at or below -400cp for 3 moves
+game 2/3060 match 1/1530: Maia3-23m-2000 (W) vs Maia3-23m-1800 (B) -> black wins [early_resign] | 36 moves | W 1.34s B 1.23s | rn2k1nr/pbppqppp/8/2bP4/2B5/P4N2/1P3PPP/RNBQK2R w KQkq - 0 1
+
+Final standings:
+  #  Engine                      Pts    W    D    L   Games   Rel.Elo
+  1  Stockfish-Nodes-25k       329.0  319   20    1     340    +590.3
+  2  Lc0-1k                    311.5  300   23   17     340    +415.4
+  3  Stockfish-Nodes-10k       310.0  298   24   18     340    +405.7
+  4  Lc0-100                   283.0  273   20   47     340    +278.4
+  5  Stockfish-Nodes-1k        243.0  235   16   89     340    +159.5
+  6  Maia3-79m-2800            163.5  147   33  160     340     -13.3
+  7  Maia3-23m-2800            151.0  132   38  170     340     -39.0
+  8  Maia3-79m-2600            150.5  136   29  175     340     -40.0
+  9  Stockfish-Nodes-100       148.0  135   26  179     340     -45.2
+ 10  Maia3-79m-2400            143.5  127   33  180     340     -54.6
+ 11  Maia3-23m-2600            139.0  122   34  184     340     -64.1
+ 12  Maia3-23m-2400            130.5  116   29  195     340     -82.2
+ 13  Maia3-23m-2200            114.0   94   40  206     340    -118.9
+ 14  Maia3-79m-2200            106.0   89   34  217     340    -137.6
+ 15  Maia3-79m-2000            100.0   77   46  217     340    -152.1
+ 16  Maia3-79m-1800             95.0   80   30  230     340    -164.6
+ 17  Maia3-23m-2000             81.0   60   42  238     340    -201.9
+ 18  Maia3-23m-1800             61.5   50   23  267     340    -262.4
