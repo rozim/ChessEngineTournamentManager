@@ -88,9 +88,10 @@ pub fn run(
                     let black_name = &configs[black_idx].name;
                     let wt = secs(record.time_used[0]);
                     let bt = secs(record.time_used[1]);
+                    let plies = record.sans.len();
 
                     println!(
-                        "game {game_no} match {match_no}: {white_name} (W) vs {black_name} (B) -> {result} [{term}] | W {wt:.2}s B {bt:.2}s | {fen}",
+                        "game {game_no} match {match_no}: {white_name} (W) vs {black_name} (B) -> {result} [{term}] | {plies} moves | W {wt:.2}s B {bt:.2}s | {fen}",
                         result = record.result.phrase(),
                         term = record.termination.description(),
                         fen = opening,
