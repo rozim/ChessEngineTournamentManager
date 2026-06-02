@@ -149,7 +149,10 @@ Sample configs are in `engines/`. For MCTS engines like **lc0**, use `time` or
   `XBlackConfiguration` (each engine's search config), and a `Termination` tag.
 - **stdout** — one line per finished game (engines, result, time used, game and
   match numbers, and the starting FEN), followed by a final standings table
-  ordered by points, with win/draw/loss counts and a relative Elo estimate.
+  ordered by points, with win/draw/loss counts, a relative Elo estimate, and a
+  95% confidence interval on that Elo (computed pentanomially from the
+  mini-match pair results; shown as `n/a` at 0%/100% scores or with fewer than
+  two pairs).
 
 ## Opening books
 

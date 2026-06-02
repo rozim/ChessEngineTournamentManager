@@ -1,7 +1,7 @@
 //! Orchestrate the round-robin, drive games (optionally in parallel), and
 //! report standings.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -99,6 +99,9 @@ fn build_tasks(n_engines: usize, mini_matches: u32) -> Vec<GameTask> {
 struct Shared {
     pgn: PgnWriter,
     standings: Vec<Standing>,
+    /// Accumulated points per (engine, mini-match) — each completed entry is
+    /// one pentanomial pair score (0.0..=2.0) for that engine.
+    pair_acc: HashMap<(usize, u32), f64>,
 }
 
 /// Run the whole tournament and return the final standings.
@@ -125,6 +128,7 @@ pub fn run(
     let shared = Mutex::new(Shared {
         pgn: PgnWriter::create(Path::new("match.pgn"))?,
         standings: configs.iter().map(|c| Standing::new(&c.name)).collect(),
+        pair_acc: HashMap::new(),
     });
     let cursor = AtomicUsize::new(0);
 
@@ -179,6 +183,15 @@ pub fn run(
                             sh.standings[task.black_idx].draws += 1;
                         }
                     }
+                    // Accumulate each side's points into its mini-match pair
+                    // (for the pentanomial Elo confidence interval).
+                    let (wp, bp) = match record.result {
+                        GameResult::WhiteWins => (1.0, 0.0),
+                        GameResult::BlackWins => (0.0, 1.0),
+                        GameResult::Draw => (0.5, 0.5),
+                    };
+                    *sh.pair_acc.entry((task.white_idx, task.match_no)).or_insert(0.0) += wp;
+                    *sh.pair_acc.entry((task.black_idx, task.match_no)).or_insert(0.0) += bp;
                     println!(
                         "game {gno}/{ngames} match {mno}/{nmatches}: {white_name} (W) vs {black_name} (B) -> {res} [{term}] | {plies} moves | W {wt:.2}s B {bt:.2}s | {opening}",
                         gno = task.game_no,
@@ -215,7 +228,13 @@ pub fn run(
         Ok(())
     })?;
 
-    Ok(shared.into_inner().expect("shared state mutex poisoned").standings)
+    let shared = shared.into_inner().expect("shared state mutex poisoned");
+    let mut standings = shared.standings;
+    // Attach each engine's per-mini-match pair scores for the Elo CI.
+    for ((engine, _match_no), points) in shared.pair_acc {
+        standings[engine].pair_points.push(points);
+    }
+    Ok(standings)
 }
 
 /// Print the final standings table, ordered by points (highest first).
@@ -238,12 +257,16 @@ pub fn print_standings(standings: &[Standing]) {
 
     println!("\nFinal standings:");
     println!(
-        "{:>3}  {:<name_w$} {:>6} {:>4} {:>4} {:>4} {:>7} {:>9}",
-        "#", "Engine", "Pts", "W", "D", "L", "Games", "Rel.Elo"
+        "{:>3}  {:<name_w$} {:>6} {:>4} {:>4} {:>4} {:>7} {:>9} {:>10}",
+        "#", "Engine", "Pts", "W", "D", "L", "Games", "Rel.Elo", "95% CI"
     );
     for (rank, s) in ranked.iter().enumerate() {
+        let ci = match s.elo_ci95() {
+            Some(c) => format!("+/-{c:.1}"),
+            None => "n/a".to_string(),
+        };
         println!(
-            "{:>3}  {:<name_w$} {:>6.1} {:>4} {:>4} {:>4} {:>7} {:>+9.1}",
+            "{:>3}  {:<name_w$} {:>6.1} {:>4} {:>4} {:>4} {:>7} {:>+9.1} {:>10}",
             rank + 1,
             s.name,
             s.points(),
@@ -252,6 +275,7 @@ pub fn print_standings(standings: &[Standing]) {
             s.losses,
             s.games(),
             s.relative_elo(),
+            ci,
         );
     }
 }

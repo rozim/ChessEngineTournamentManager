@@ -74,6 +74,9 @@ After all matches are done, for every engine show:
 - summary of results (points, wins, losses, draws).
 -- For points, win=1, draw=0.5, loss=0
 - relative ELO change based on results
+- a 95% confidence interval on the relative ELO, computed pentanomially (the
+  per-mini-match pair is the sampling unit); shown as n/a at 0%/100% scores or
+  with fewer than two pairs
 
 Order the engines based on highest points first.
 
