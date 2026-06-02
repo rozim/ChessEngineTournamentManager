@@ -39,7 +39,8 @@ impl PgnWriter {
         white_id: &str,
         black_id: &str,
         start_fen: &str,
-        time_control: &str,
+        white_config: &str,
+        black_config: &str,
         game: &GameRecord,
     ) -> Result<()> {
         let tag = |w: &mut BufWriter<File>, name: &str, value: &str| -> Result<()> {
@@ -55,10 +56,11 @@ impl PgnWriter {
         tag(&mut self.out, "Result", game.result.pgn())?;
         tag(&mut self.out, "SetUp", "1")?;
         tag(&mut self.out, "FEN", start_fen)?;
-        tag(&mut self.out, "TimeControl", time_control)?;
         tag(&mut self.out, "Termination", game.termination.description())?;
         tag(&mut self.out, "X-White-Id-Name", white_id)?;
         tag(&mut self.out, "X-Black-Id-Name", black_id)?;
+        tag(&mut self.out, "X-White-Configuration", white_config)?;
+        tag(&mut self.out, "X-Black-Configuration", black_config)?;
         writeln!(self.out)?;
 
         let body = movetext(game);

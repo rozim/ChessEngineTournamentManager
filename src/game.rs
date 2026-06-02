@@ -9,7 +9,7 @@ use shakmaty::san::SanPlus;
 use shakmaty::uci::UciMove;
 use shakmaty::{Chess, Color, EnPassantMode, KnownOutcome, Outcome, Position};
 
-use crate::cli::Limit;
+use crate::config::SearchLimit;
 use crate::engine::{Engine, SearchRequest};
 
 /// Hard ceiling on plies, so a pathological game can never run forever.
@@ -100,13 +100,32 @@ fn idx(color: Color) -> usize {
     }
 }
 
-/// Play one full game. `white` and `black` are the engines for each color;
-/// `start_fen` is the EPD/FEN starting position.
+/// The starting clock for an engine, in milliseconds — present only for
+/// time-limited engines, which are the only ones the manager times.
+fn starting_clock(limit: SearchLimit) -> Option<u64> {
+    match limit {
+        SearchLimit::Time { base_ms, .. } => Some(base_ms),
+        SearchLimit::Nodes(_) | SearchLimit::Depth(_) => None,
+    }
+}
+
+/// Per-move increment for a color, used to fill the `winc`/`binc` fields when
+/// telling a time-limited engine to search. A non-time-limited opponent has no
+/// increment, so we fall back to `placeholder` (the mover's own increment) to
+/// keep the reported clock symmetric.
+fn increment_for(limit: SearchLimit, placeholder: u64) -> u64 {
+    match limit {
+        SearchLimit::Time { inc_ms, .. } => inc_ms,
+        SearchLimit::Nodes(_) | SearchLimit::Depth(_) => placeholder,
+    }
+}
+
+/// Play one full game. `white` and `black` are the engines for each color
+/// (each carrying its own search limit); `start_fen` is the starting position.
 pub fn play_game(
     white: &mut Engine,
     black: &mut Engine,
     start_fen: &str,
-    limit: &Limit,
 ) -> Result<GameRecord> {
     let fen: Fen = start_fen
         .parse()
@@ -131,11 +150,11 @@ pub fn play_game(
     let mut seen: HashMap<String, u32> = HashMap::new();
     seen.insert(repetition_key(&pos), 1);
 
-    // Per-color clocks, used only in time mode.
-    let mut clocks: [u64; 2] = match limit {
-        Limit::Time(tc) => [tc.base_ms, tc.base_ms],
-        Limit::Nodes(_) => [0, 0],
-    };
+    // Each engine's own search limit, indexed by color.
+    let limits = [white.limit, black.limit];
+
+    // Per-color clocks (milliseconds), present only for time-limited engines.
+    let mut clocks: [Option<u64>; 2] = [starting_clock(limits[0]), starting_clock(limits[1])];
 
     let mut ply: u32 = 0;
     loop {
@@ -171,32 +190,42 @@ pub fn play_game(
         }
 
         let side = pos.turn();
+        let mover_limit = limits[idx(side)];
         let (mover, opponent_result) = match side {
             Color::White => (&mut *white, GameResult::BlackWins),
             Color::Black => (&mut *black, GameResult::WhiteWins),
         };
 
-        // Build the search request for this move.
-        let request = match limit {
-            Limit::Nodes(n) => SearchRequest::Nodes(*n),
-            Limit::Time(tc) => SearchRequest::Time {
-                wtime: clocks[idx(Color::White)],
-                btime: clocks[idx(Color::Black)],
-                winc: tc.increment_ms,
-                binc: tc.increment_ms,
-            },
+        // Build the UCI search request appropriate to this engine's own limit.
+        let request = match mover_limit {
+            SearchLimit::Nodes(n) => SearchRequest::Nodes(n),
+            SearchLimit::Depth(d) => SearchRequest::Depth(d),
+            SearchLimit::Time { inc_ms: mover_inc, .. } => {
+                // The mover is time-limited, so its clock is present. For a side
+                // whose engine is not time-limited, report the mover's own clock
+                // as a neutral stand-in.
+                let self_ms = clocks[idx(side)].expect("time-limited engine has a clock");
+                SearchRequest::Time {
+                    wtime: clocks[idx(Color::White)].unwrap_or(self_ms),
+                    btime: clocks[idx(Color::Black)].unwrap_or(self_ms),
+                    winc: increment_for(limits[idx(Color::White)], mover_inc),
+                    binc: increment_for(limits[idx(Color::Black)], mover_inc),
+                }
+            }
         };
 
         let (uci_str, elapsed) = mover.search(start_fen, &moves, &request)?;
         time_used[idx(side)] += elapsed;
 
-        // Time mode: deduct from the clock and check for a flag fall.
-        if let Limit::Time(tc) = limit {
+        // Timekeeping applies only to the time-limited engine: deduct the
+        // elapsed time from its clock and forfeit if it overran.
+        if let SearchLimit::Time { inc_ms, .. } = mover_limit {
             let elapsed_ms = elapsed.as_millis() as u64;
-            if elapsed_ms > clocks[idx(side)] {
+            let clock = clocks[idx(side)].as_mut().expect("time-limited engine has a clock");
+            if elapsed_ms > *clock {
                 return Ok(finish(opponent_result, Termination::TimeForfeit, sans, time_used, start_fullmove, start_white_to_move));
             }
-            clocks[idx(side)] = clocks[idx(side)] - elapsed_ms + tc.increment_ms;
+            *clock = *clock - elapsed_ms + inc_ms;
         }
 
         // Parse and validate the move; anything illegal forfeits the game.

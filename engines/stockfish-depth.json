@@ -1,0 +1,6 @@
+{
+  "path": "/usr/local/bin/stockfish",
+  "name": "Stockfish-Depth",
+  "limit": { "mode": "depth", "depth": 8 },
+  "options": { "Threads": 1 }
+}

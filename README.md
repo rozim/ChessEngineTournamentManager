@@ -11,6 +11,8 @@ between two or more UCI chess engines.
   swapping colors between the two games.
 - Each mini-match's starting position is chosen at random from an EPD file of
   unbalanced openings (so games are decisive more often than not).
+- Each engine runs under its own search limit — time, nodes, or depth — set in
+  its JSON config; engines with different limits can face each other.
 - At the start of every game both engines are sent `ucinewgame`, clearing their
   hash tables.
 - Games end on checkmate, stalemate, insufficient material, the fifty-move
@@ -24,40 +26,37 @@ cargo build --release
 
 ## Running
 
+Each engine's search limit (time, nodes, or depth) lives in its own JSON
+config, so the command line only selects the openings, the number of
+mini-matches, and the engines.
+
 ```sh
-# Time control: 60s base + 0.1s increment (the defaults), two engines
+# Two engines, defaults (openings.epd, 1 mini-match per pair)
 cargo run --release -- engines/a.json engines/b.json
 
-# Explicit time control
-cargo run --release -- --mode time --seconds 30 --increment 0.2 \
-    engines/a.json engines/b.json
-
-# Fixed-nodes control, three engines, two mini-matches per pair
-cargo run --release -- --mode nodes --nodes 100000 --mini-matches 2 \
+# Three engines, two mini-matches per pair, a different opening book
+cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
     engines/a.json engines/b.json engines/c.json
 ```
 
 ### Command-line arguments
 
-| Flag | Mode | Default | Meaning |
-|------|------|---------|---------|
-| `--mode` | — | `time` | `time` or `nodes` |
-| `--seconds` | time | `60` | base time per game, whole seconds |
-| `--increment` | time | `0.1` | increment per move, seconds |
-| `--nodes` | nodes | — | node limit per move (required in nodes mode) |
-| `--epd` | — | `openings.epd` | starting-position file |
-| `--mini-matches` | — | `1` | mini-matches per engine pair |
-| `<configs>...` | — | — | 2+ engine JSON config files |
-
-`--nodes` is rejected in time mode; `--seconds`/`--increment` are rejected in
-nodes mode.
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--epd` | `openings.epd` | starting-position file |
+| `--mini-matches` | `1` | mini-matches per engine pair |
+| `<configs>...` | — | 2+ engine JSON config files |
 
 ## Engine configuration (JSON)
+
+Each engine declares its own search limit via a `limit` object whose `mode` is
+`time`, `nodes`, or `depth`:
 
 ```json
 {
   "path": "/usr/local/bin/stockfish",
   "name": "Stockfish-Strong",
+  "limit": { "mode": "time", "seconds": 60, "increment": 0.1 },
   "options": { "Skill Level": 20, "Threads": 1, "Hash": 64 }
 }
 ```
@@ -65,13 +64,22 @@ nodes mode.
 - `path` — path to the engine binary (must be an executable file).
 - `name` — display name used in PGN and stdout (must be non-empty and unique
   across all configs).
+- `limit` — search limit; optional, defaults to `{"mode":"time","seconds":60,"increment":0.1}`:
+  - `{ "mode": "time", "seconds": <int=60>, "increment": <float secs=0.1> }`
+  - `{ "mode": "nodes", "nodes": <int> }`
+  - `{ "mode": "depth", "depth": <int> }`
 - `options` — optional map of UCI options applied via `setoption`.
+
+Only time-limited engines are clocked and can lose on time; node- and
+depth-limited engines are never timed (their wall-clock thinking time is still
+reported). Engines with different modes can play each other.
 
 ## Output
 
 - **`match.pgn`** — truncated on startup, then one PGN game appended (and
   flushed) per game. Includes standard tags plus `X-White-Id-Name` /
-  `X-Black-Id-Name` (the engines' `id name` strings) and a `Termination` tag.
+  `X-Black-Id-Name` (the engines' `id name` strings), `X-White-Configuration` /
+  `X-Black-Configuration` (each engine's search config), and a `Termination` tag.
 - **stdout** — one line per finished game (engines, result, time used, game and
   match numbers, and the starting FEN), followed by a final standings table
   ordered by points, with win/draw/loss counts and a relative Elo estimate.

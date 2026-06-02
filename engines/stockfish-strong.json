@@ -1,9 +1,6 @@
 {
   "path": "/usr/local/bin/stockfish",
   "name": "Stockfish-Strong",
-  "options": {
-    "Skill Level": 20,
-    "Threads": 1,
-    "Hash": 64
-  }
+  "limit": { "mode": "time", "seconds": 10, "increment": 0.1 },
+  "options": { "Skill Level": 20, "Threads": 1, "Hash": 64 }
 }

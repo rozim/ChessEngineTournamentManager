@@ -1,9 +1,6 @@
 {
   "path": "/usr/local/bin/stockfish",
   "name": "Stockfish-Weak",
-  "options": {
-    "Skill Level": 1,
-    "Threads": 1,
-    "Hash": 16
-  }
+  "limit": { "mode": "nodes", "nodes": 50000 },
+  "options": { "Skill Level": 3, "Threads": 1, "Hash": 16 }
 }

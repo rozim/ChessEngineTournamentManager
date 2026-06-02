@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use crate::cli::Limit;
 use crate::config::EngineConfig;
 use crate::elo::Standing;
 use crate::engine::Engine;
@@ -34,16 +33,17 @@ fn secs(d: Duration) -> f64 {
 pub fn run(
     configs: &[EngineConfig],
     positions: &[String],
-    limit: &Limit,
     mini_matches: u32,
     date: &str,
-    time_control: &str,
 ) -> Result<Vec<Standing>> {
     // Start every engine once; hash tables are cleared per game via ucinewgame.
     let mut engines: Vec<Engine> = Vec::with_capacity(configs.len());
     for cfg in configs {
         engines.push(Engine::start(cfg)?);
     }
+
+    // Per-engine configuration strings for the PGN X-*-Configuration tags.
+    let config_pgn: Vec<String> = configs.iter().map(|c| c.pgn_configuration()).collect();
 
     let mut standings: Vec<Standing> =
         configs.iter().map(|c| Standing::new(&c.name)).collect();
@@ -65,7 +65,7 @@ pub fn run(
 
                     let record = {
                         let (white, black) = pair_mut(&mut engines, white_idx, black_idx);
-                        play_game(white, black, opening, limit)?
+                        play_game(white, black, opening)?
                     };
 
                     // Update standings.
@@ -105,7 +105,8 @@ pub fn run(
                         &engines[white_idx].id_name,
                         &engines[black_idx].id_name,
                         opening,
-                        time_control,
+                        &config_pgn[white_idx],
+                        &config_pgn[black_idx],
                         &record,
                     )?;
                 }

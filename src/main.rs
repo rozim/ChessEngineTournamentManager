@@ -15,10 +15,11 @@ use clap::Parser;
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::cli::{Args, Limit};
+use crate::cli::Args;
 use crate::config::EngineConfig;
 
-/// Enforce the cross-config rules: non-empty unique names and executable paths.
+/// Enforce the cross-config rules: non-empty unique names, executable paths,
+/// and a valid per-engine search limit.
 fn validate_configs(configs: &[EngineConfig]) -> Result<()> {
     let mut seen: HashSet<&str> = HashSet::new();
     for cfg in configs {
@@ -35,6 +36,8 @@ fn validate_configs(configs: &[EngineConfig]) -> Result<()> {
                 cfg.path
             );
         }
+        // Validate the configured time/nodes/depth limit up front.
+        cfg.search_limit()?;
     }
     Ok(())
 }
@@ -50,7 +53,6 @@ fn is_executable(path: &Path) -> bool {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let limit = args.limit()?;
 
     // Load engine configurations.
     let configs: Vec<EngineConfig> = args
@@ -66,31 +68,20 @@ fn main() -> Result<()> {
     // Load starting positions.
     let positions = positions::load_epd(&args.epd)?;
 
-    // Describe the time control for PGN and the banner.
-    let time_control = match &limit {
-        Limit::Time(tc) => format!("{}+{}", tc.base_ms / 1000, tc.increment_ms as f64 / 1000.0),
-        Limit::Nodes(n) => format!("nodes:{n}"),
-    };
-
     // A fixed date is fine for a single tournament run.
     let date = "2026.06.01";
 
     println!(
-        "Starting tournament: {} engines, {} mini-match(es) per pair, {} openings, control {}",
+        "Starting tournament: {} engines, {} mini-match(es) per pair, {} openings",
         configs.len(),
         args.mini_matches,
         positions.len(),
-        time_control,
     );
+    for cfg in &configs {
+        println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
+    }
 
-    let standings = tournament::run(
-        &configs,
-        &positions,
-        &limit,
-        args.mini_matches,
-        date,
-        &time_control,
-    )?;
+    let standings = tournament::run(&configs, &positions, args.mini_matches, date)?;
 
     tournament::print_standings(&standings);
     println!("\nGames written to match.pgn");

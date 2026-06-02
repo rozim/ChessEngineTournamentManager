@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::config::EngineConfig;
+use crate::config::{EngineConfig, SearchLimit};
 
 /// A running UCI engine we can drive turn by turn.
 pub struct Engine {
@@ -14,6 +14,8 @@ pub struct Engine {
     pub name: String,
     /// The `id name` reported by the engine after the `uci` handshake.
     pub id_name: String,
+    /// This engine's own search limit (time, nodes, or depth).
+    pub limit: SearchLimit,
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
@@ -23,6 +25,9 @@ impl Engine {
     /// Spawn the engine, perform the `uci` handshake, apply options, and wait
     /// until it is ready.
     pub fn start(cfg: &EngineConfig) -> Result<Engine> {
+        // Validate the configured search limit before spawning anything.
+        let limit = cfg.search_limit()?;
+
         let mut child = Command::new(&cfg.path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -44,6 +49,7 @@ impl Engine {
         let mut engine = Engine {
             name: cfg.name.clone(),
             id_name: cfg.name.clone(),
+            limit,
             child,
             stdin,
             stdout,
@@ -142,6 +148,7 @@ impl Engine {
                 binc,
             } => format!("go wtime {wtime} btime {btime} winc {winc} binc {binc}"),
             SearchRequest::Nodes(nodes) => format!("go nodes {nodes}"),
+            SearchRequest::Depth(depth) => format!("go depth {depth}"),
         };
 
         let started = Instant::now();
@@ -186,4 +193,5 @@ pub enum SearchRequest {
         binc: u64,
     },
     Nodes(u64),
+    Depth(u32),
 }
