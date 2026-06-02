@@ -1,0 +1,6 @@
+{
+  "path": "/Users/dave/venv-maia3/bin/maia3-79m",
+  "name": "Maia3-79m-2400",
+  "limit": { "mode": "nodes", "nodes": 1 },
+  "options": { "Elo": 2400 }
+}
