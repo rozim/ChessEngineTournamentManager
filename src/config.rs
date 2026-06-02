@@ -3,42 +3,85 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 
 /// The search limit for one engine, as written in its JSON config. The `mode`
-/// field selects the variant; the remaining fields are mode-specific.
+/// field selects exactly one variant; the remaining fields are mode-specific.
+///
+/// This is required in every engine config (there is no default) and is
+/// validated strictly on load: exactly one mode must be chosen, only that
+/// mode's fields may be present, and the values must be in range (see
+/// [`LimitConfig::try_from`]).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "mode", rename_all = "lowercase")]
+#[serde(try_from = "RawLimit")]
 pub enum LimitConfig {
-    /// Clock with a base time and per-move increment. The engine receives a
-    /// `go wtime/btime/winc/binc` command and is the only kind of engine for
-    /// which the manager keeps time (and can forfeit on the clock).
-    Time {
-        #[serde(default = "default_seconds")]
-        seconds: u64,
-        #[serde(default = "default_increment")]
-        increment: f64,
-    },
+    /// Clock with a base time (seconds) and per-move increment (seconds). The
+    /// engine receives a `go wtime/btime/winc/binc` command and is the only
+    /// kind of engine for which the manager keeps time (and can forfeit).
+    Time { seconds: u64, increment: f64 },
     /// Fixed node count per move (`go nodes N`).
     Nodes { nodes: u64 },
     /// Fixed search depth per move (`go depth D`).
     Depth { depth: u32 },
 }
 
-fn default_seconds() -> u64 {
-    60
+/// Flat deserialization helper. Every recognized field is captured here so we
+/// can enforce — in [`LimitConfig::try_from`] — that exactly the fields
+/// belonging to the chosen `mode` are present. `deny_unknown_fields` also
+/// rejects typos and stray keys.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLimit {
+    mode: String,
+    seconds: Option<u64>,
+    increment: Option<f64>,
+    nodes: Option<u64>,
+    depth: Option<u32>,
 }
 
-fn default_increment() -> f64 {
-    0.1
-}
+impl TryFrom<RawLimit> for LimitConfig {
+    type Error = String;
 
-impl Default for LimitConfig {
-    fn default() -> Self {
-        LimitConfig::Time {
-            seconds: default_seconds(),
-            increment: default_increment(),
+    fn try_from(raw: RawLimit) -> Result<Self, String> {
+        match raw.mode.as_str() {
+            "time" => {
+                if raw.nodes.is_some() || raw.depth.is_some() {
+                    return Err("time mode does not allow 'nodes' or 'depth'".into());
+                }
+                let seconds = raw.seconds.ok_or("time mode requires 'seconds'")?;
+                let increment = raw.increment.ok_or("time mode requires 'increment'")?;
+                if seconds == 0 {
+                    return Err("time 'seconds' must be greater than zero".into());
+                }
+                if !(increment.is_finite() && increment >= 0.0) {
+                    return Err("time 'increment' must be a finite number >= 0".into());
+                }
+                Ok(LimitConfig::Time { seconds, increment })
+            }
+            "nodes" => {
+                if raw.seconds.is_some() || raw.increment.is_some() || raw.depth.is_some() {
+                    return Err("nodes mode does not allow 'seconds', 'increment', or 'depth'".into());
+                }
+                let nodes = raw.nodes.ok_or("nodes mode requires 'nodes'")?;
+                if nodes == 0 {
+                    return Err("'nodes' must be greater than zero".into());
+                }
+                Ok(LimitConfig::Nodes { nodes })
+            }
+            "depth" => {
+                if raw.seconds.is_some() || raw.increment.is_some() || raw.nodes.is_some() {
+                    return Err("depth mode does not allow 'seconds', 'increment', or 'nodes'".into());
+                }
+                let depth = raw.depth.ok_or("depth mode requires 'depth'")?;
+                if depth == 0 {
+                    return Err("'depth' must be greater than zero".into());
+                }
+                Ok(LimitConfig::Depth { depth })
+            }
+            other => Err(format!(
+                "unknown mode '{other}', expected 'time', 'nodes', or 'depth'"
+            )),
         }
     }
 }
@@ -63,9 +106,8 @@ pub struct EngineConfig {
     /// strings, numbers, or booleans in the JSON; all are sent as text.
     #[serde(default)]
     pub options: BTreeMap<String, serde_json::Value>,
-    /// Per-engine search limit. Defaults to a 60s + 0.1s time control when
-    /// omitted.
-    #[serde(default)]
+    /// Per-engine search limit. Required — every config must specify exactly
+    /// one of time, nodes, or depth.
     pub limit: LimitConfig,
 }
 
@@ -79,36 +121,17 @@ impl EngineConfig {
         Ok(cfg)
     }
 
-    /// Validate and normalize this engine's configured search limit.
-    pub fn search_limit(&self) -> Result<SearchLimit> {
+    /// Normalize this engine's configured search limit for use at runtime.
+    /// Range validation already happened when the config was parsed (see
+    /// [`LimitConfig::try_from`]), so this conversion cannot fail.
+    pub fn search_limit(&self) -> SearchLimit {
         match self.limit {
-            LimitConfig::Time { seconds, increment } => {
-                if seconds == 0 {
-                    bail!("engine '{}': time limit seconds must be greater than zero", self.name);
-                }
-                if !increment.is_finite() || increment < 0.0 {
-                    bail!(
-                        "engine '{}': time increment must be a finite, non-negative number",
-                        self.name
-                    );
-                }
-                Ok(SearchLimit::Time {
-                    base_ms: seconds.saturating_mul(1000),
-                    inc_ms: (increment * 1000.0).round() as u64,
-                })
-            }
-            LimitConfig::Nodes { nodes } => {
-                if nodes == 0 {
-                    bail!("engine '{}': node limit must be greater than zero", self.name);
-                }
-                Ok(SearchLimit::Nodes(nodes))
-            }
-            LimitConfig::Depth { depth } => {
-                if depth == 0 {
-                    bail!("engine '{}': depth limit must be greater than zero", self.name);
-                }
-                Ok(SearchLimit::Depth(depth))
-            }
+            LimitConfig::Time { seconds, increment } => SearchLimit::Time {
+                base_ms: seconds.saturating_mul(1000),
+                inc_ms: (increment * 1000.0).round() as u64,
+            },
+            LimitConfig::Nodes { nodes } => SearchLimit::Nodes(nodes),
+            LimitConfig::Depth { depth } => SearchLimit::Depth(depth),
         }
     }
 

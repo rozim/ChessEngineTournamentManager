@@ -77,9 +77,10 @@ Order the engines based on highest points first.
 - path the engine binary
 - text name of engine - use this in the PGN output
 - optional UCI options to set with the UCI setoption command.
-- search limit, selecting this engine's mode and its parameters. Optional;
-  defaults to time mode with 60 seconds base and 0.1 second increment.
--- time:  { "mode": "time", "seconds": <int, default 60>, "increment": <float seconds, default 0.1> }
+- search limit, selecting this engine's mode and its parameters. Required and
+  explicit (there is no default). The config must specify exactly one mode and
+  only that mode's fields:
+-- time:  { "mode": "time", "seconds": <int>, "increment": <float seconds> }
 -- nodes: { "mode": "nodes", "nodes": <int> }
 -- depth: { "mode": "depth", "depth": <int> }
 
@@ -87,5 +88,7 @@ Order the engines based on highest points first.
 -- Across all the JSON engine configuration files, every engine must have a unique name
 -- Every path must be a path to an executable binary
 -- The name cannot be empty
--- The search limit must be valid: time seconds > 0 and increment finite and
-   non-negative; node count > 0; depth > 0
+-- The search limit is required and must specify exactly one mode, with only
+   that mode's fields present (no extra or unknown fields)
+-- The search limit values must be valid: time seconds > 0 and increment finite
+   and >= 0; node count > 0; depth > 0

@@ -64,11 +64,15 @@ Each engine declares its own search limit via a `limit` object whose `mode` is
 - `path` — path to the engine binary (must be an executable file).
 - `name` — display name used in PGN and stdout (must be non-empty and unique
   across all configs).
-- `limit` — search limit; optional, defaults to `{"mode":"time","seconds":60,"increment":0.1}`:
-  - `{ "mode": "time", "seconds": <int=60>, "increment": <float secs=0.1> }`
+- `limit` — search limit; **required** and explicit (no default). Specify
+  exactly one mode, with only that mode's fields present:
+  - `{ "mode": "time", "seconds": <int>, "increment": <float secs> }`
   - `{ "mode": "nodes", "nodes": <int> }`
   - `{ "mode": "depth", "depth": <int> }`
 - `options` — optional map of UCI options applied via `setoption`.
+
+Validation (on load): exactly one mode with no extra/unknown fields; `seconds`
+> 0 and `increment` finite and ≥ 0; `nodes` > 0; `depth` > 0.
 
 Only time-limited engines are clocked and can lose on time; node- and
 depth-limited engines are never timed (their wall-clock thinking time is still

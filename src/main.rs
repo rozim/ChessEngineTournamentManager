@@ -18,8 +18,8 @@ use std::path::Path;
 use crate::cli::Args;
 use crate::config::EngineConfig;
 
-/// Enforce the cross-config rules: non-empty unique names, executable paths,
-/// and a valid per-engine search limit.
+/// Enforce the cross-config rules: non-empty unique names and executable paths.
+/// (Each engine's search limit is validated when its config is parsed.)
 fn validate_configs(configs: &[EngineConfig]) -> Result<()> {
     let mut seen: HashSet<&str> = HashSet::new();
     for cfg in configs {
@@ -36,8 +36,6 @@ fn validate_configs(configs: &[EngineConfig]) -> Result<()> {
                 cfg.path
             );
         }
-        // Validate the configured time/nodes/depth limit up front.
-        cfg.search_limit()?;
     }
     Ok(())
 }

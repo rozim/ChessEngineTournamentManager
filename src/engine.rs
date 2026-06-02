@@ -25,8 +25,8 @@ impl Engine {
     /// Spawn the engine, perform the `uci` handshake, apply options, and wait
     /// until it is ready.
     pub fn start(cfg: &EngineConfig) -> Result<Engine> {
-        // Validate the configured search limit before spawning anything.
-        let limit = cfg.search_limit()?;
+        // Normalized search limit (already validated when the config parsed).
+        let limit = cfg.search_limit();
 
         let mut child = Command::new(&cfg.path)
             .stdin(Stdio::piped())
