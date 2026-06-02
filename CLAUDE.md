@@ -67,8 +67,14 @@ Order the engines based on highest points first.
 - Positional arguments of JSON configuration files for each chess engine
 -- There must be 2 or more of these
 
+
 ## JSON engine configuration
 
 - path the engine binary
 - text name of engine - use this in the PGN output
 - optional UCI options to set with the UCI setoption command.
+
+### JSON Validation
+-- Across all the JSON engine configuration files, every engine must have a unique name
+-- Every path must be a path to an executable binary
+-- The name cannot be empty

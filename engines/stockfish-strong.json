@@ -1,0 +1,9 @@
+{
+  "path": "/usr/local/bin/stockfish",
+  "name": "Stockfish-Strong",
+  "options": {
+    "Skill Level": 20,
+    "Threads": 1,
+    "Hash": 64
+  }
+}
