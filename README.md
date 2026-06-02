@@ -152,7 +152,8 @@ Sample configs are in `engines/`. For MCTS engines like **lc0**, use `time` or
   ordered by points, with win/draw/loss counts, a relative Elo estimate, and a
   95% confidence interval on that Elo (computed pentanomially from the
   mini-match pair results; shown as `n/a` at 0%/100% scores or with fewer than
-  two pairs).
+  two pairs). See [STATISTICS.md](STATISTICS.md) for the exact formulas,
+  rationale, and caveats.
 
 ## Opening books
 
