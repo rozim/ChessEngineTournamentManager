@@ -1,6 +1,6 @@
 {
   "path": "/usr/local/bin/stockfish",
-  "name": "Stockfish-Nodes-10k-Dummy",
+  "name": "Stockfish-Nodes-10k-Weaken-Dummy",
   "limit": { "mode": "nodes", "nodes": 10000 },
   "weaken": { "probability": 0.0, "margin_cp": 60, "candidates": 5, "balance_cp": 80 }
 }
