@@ -69,17 +69,24 @@ fn main() -> Result<()> {
     // A fixed date is fine for a single tournament run.
     let date = "2026.06.01";
 
+    // Resolve the opening seed; print it so the run can be reproduced.
+    let seed = args.seed.unwrap_or_else(rand::random::<u64>);
+    let concurrency = args.concurrency.max(1);
+
     println!(
-        "Starting tournament: {} engines, {} mini-match(es) per pair, {} openings",
+        "Starting tournament: {} engines, {} mini-match(es)/pair from a book of {} positions, seed {}, concurrency {}",
         configs.len(),
         args.mini_matches,
         positions.len(),
+        seed,
+        concurrency,
     );
     for cfg in &configs {
         println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
     }
 
-    let standings = tournament::run(&configs, &positions, args.mini_matches, date)?;
+    let standings =
+        tournament::run(&configs, &positions, args.mini_matches, date, seed, concurrency)?;
 
     tournament::print_standings(&standings);
     println!("\nGames written to match.pgn");

@@ -12,7 +12,10 @@ Try to use the Rust crates: shakmaty, stockfish, pgn-reader
 
 - For every pair of configured chess engines, they play a match that is a configurable number of mini-matches.
 - A mini-match is 2 games from the same starting position, with each engine taking turns as black and white.
-- Every (engine1, engine2, mini-match-number) tuple will start from the same randomly chosen opening position
+- A single opening set is chosen once (one position per mini-match number) and
+  shared by every pair of engines, so all pairs play the same openings. The
+  selection is seeded (--seed) and thus reproducible; both games of a given
+  mini-match start from that mini-match's opening.
 - Detect end of game: mate, draw, lack of sufficient material, too many moves without progress.
 - At the start of a game, tell each engine to clear their hash table.
 - There is no tournament-wide search mode. Each engine independently runs in
@@ -68,6 +71,10 @@ Order the engines based on highest points first.
 -- Store this in the repository
 -- Default to this file
 - Number of mini matches to play for each pair of engines. Default 1.
+- Seed for choosing the shared opening set. Optional; a fresh random seed is
+  used and printed when omitted, so any run can be reproduced.
+- Concurrency: number of games to play in parallel. Default 1. Each parallel
+  worker runs its own set of engine processes.
 - Positional arguments of JSON configuration files for each chess engine
 -- There must be 2 or more of these
 

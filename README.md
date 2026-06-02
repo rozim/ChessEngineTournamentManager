@@ -9,8 +9,10 @@ between two or more UCI chess engines.
   **mini-matches**.
 - A mini-match is two games from the same starting position, with the engines
   swapping colors between the two games.
-- Each mini-match's starting position is chosen at random from an EPD file of
-  unbalanced openings (so games are decisive more often than not).
+- One opening set (one position per mini-match) is chosen once from an EPD file
+  of unbalanced openings and shared by every pair, so all pairs play the same
+  positions. Selection is seeded (`--seed`) and reproducible.
+- Games can be played in parallel with `--concurrency N`.
 - Each engine runs under its own search limit — time, nodes, or depth — set in
   its JSON config; engines with different limits can face each other.
 - At the start of every game both engines are sent `ucinewgame`, clearing their
@@ -34,8 +36,10 @@ mini-matches, and the engines.
 # Two engines, defaults (openings.epd, 1 mini-match per pair)
 cargo run --release -- engines/a.json engines/b.json
 
-# Three engines, two mini-matches per pair, a different opening book
+# Three engines, two mini-matches per pair, a different book,
+# a fixed seed, and 4 games in parallel
 cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
+    --seed 42 --concurrency 4 \
     engines/a.json engines/b.json engines/c.json
 ```
 
@@ -45,7 +49,14 @@ cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
 |------|---------|---------|
 | `--epd` | `openings.epd` | starting-position file |
 | `--mini-matches` | `1` | mini-matches per engine pair |
+| `--seed` | random | seed for the shared opening set (printed if omitted) |
+| `--concurrency` | `1` | number of games to play in parallel |
 | `<configs>...` | — | 2+ engine JSON config files |
+
+With `--concurrency N`, each of the `N` workers runs its own set of engine
+processes (so roughly `N × engines` processes exist), and per-game stdout/PGN
+lines are written as games finish — out of order, but each correctly numbered.
+`--concurrency 1` (the default) keeps output in deterministic order.
 
 ## Engine configuration (JSON)
 
