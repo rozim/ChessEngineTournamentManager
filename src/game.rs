@@ -9,7 +9,7 @@ use shakmaty::san::SanPlus;
 use shakmaty::uci::UciMove;
 use shakmaty::{Chess, Color, EnPassantMode, KnownOutcome, Outcome, Position};
 
-use crate::cli::{Limit, TimeControl};
+use crate::cli::Limit;
 use crate::engine::{Engine, SearchRequest};
 
 /// Hard ceiling on plies, so a pathological game can never run forever.
@@ -131,10 +131,10 @@ pub fn play_game(
     let mut seen: HashMap<String, u32> = HashMap::new();
     seen.insert(repetition_key(&pos), 1);
 
-    // Per-color clocks for time mode.
-    let (mut clocks, time_ctrl): ([u64; 2], Option<TimeControl>) = match limit {
-        Limit::Time(tc) => ([tc.base_ms, tc.base_ms], Some(*tc)),
-        Limit::Nodes(_) => ([0, 0], None),
+    // Per-color clocks, used only in time mode.
+    let mut clocks: [u64; 2] = match limit {
+        Limit::Time(tc) => [tc.base_ms, tc.base_ms],
+        Limit::Nodes(_) => [0, 0],
     };
 
     let mut ply: u32 = 0;
@@ -177,22 +177,21 @@ pub fn play_game(
         };
 
         // Build the search request for this move.
-        let request = match (limit, time_ctrl) {
-            (Limit::Nodes(_), _) => SearchRequest::nodes_from_limit(limit).unwrap(),
-            (Limit::Time(_), Some(_)) => SearchRequest::Time {
+        let request = match limit {
+            Limit::Nodes(n) => SearchRequest::Nodes(*n),
+            Limit::Time(tc) => SearchRequest::Time {
                 wtime: clocks[idx(Color::White)],
                 btime: clocks[idx(Color::Black)],
-                winc: time_ctrl.map(|t| t.increment_ms).unwrap_or(0),
-                binc: time_ctrl.map(|t| t.increment_ms).unwrap_or(0),
+                winc: tc.increment_ms,
+                binc: tc.increment_ms,
             },
-            _ => unreachable!("time control mismatch"),
         };
 
         let (uci_str, elapsed) = mover.search(start_fen, &moves, &request)?;
         time_used[idx(side)] += elapsed;
 
         // Time mode: deduct from the clock and check for a flag fall.
-        if let Some(tc) = time_ctrl {
+        if let Limit::Time(tc) = limit {
             let elapsed_ms = elapsed.as_millis() as u64;
             if elapsed_ms > clocks[idx(side)] {
                 return Ok(finish(opponent_result, Termination::TimeForfeit, sans, time_used, start_fullmove, start_white_to_move));

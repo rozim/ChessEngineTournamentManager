@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::cli::Limit;
 use crate::config::EngineConfig;
 
 /// A running UCI engine we can drive turn by turn.
@@ -187,14 +186,4 @@ pub enum SearchRequest {
         binc: u64,
     },
     Nodes(u64),
-}
-
-impl SearchRequest {
-    /// Build a node-limited request from a [`Limit::Nodes`].
-    pub fn nodes_from_limit(limit: &Limit) -> Option<SearchRequest> {
-        match limit {
-            Limit::Nodes(n) => Some(SearchRequest::Nodes(*n)),
-            Limit::Time(_) => None,
-        }
-    }
 }
