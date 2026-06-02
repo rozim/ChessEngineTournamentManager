@@ -113,6 +113,8 @@ pub fn run(
     let openings = select_openings(positions, mini_matches, seed);
     let tasks = build_tasks(configs.len(), mini_matches);
     let n_tasks = tasks.len();
+    let num_games = n_tasks;
+    let num_matches = n_tasks / 2; // two games per mini-match
     let workers = concurrency.max(1).min(n_tasks.max(1));
 
     let config_pgn: Vec<String> = configs.iter().map(|c| c.pgn_configuration()).collect();
@@ -173,9 +175,11 @@ pub fn run(
                         }
                     }
                     println!(
-                        "game {gno} match {mno}: {white_name} (W) vs {black_name} (B) -> {res} [{term}] | {plies} moves | W {wt:.2}s B {bt:.2}s | {opening}",
+                        "game {gno}/{ngames} match {mno}/{nmatches}: {white_name} (W) vs {black_name} (B) -> {res} [{term}] | {plies} moves | W {wt:.2}s B {bt:.2}s | {opening}",
                         gno = task.game_no,
+                        ngames = num_games,
                         mno = task.match_no,
+                        nmatches = num_matches,
                         res = record.result.phrase(),
                         term = record.termination.description(),
                     );

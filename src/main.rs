@@ -80,6 +80,12 @@ fn main() -> Result<()> {
         required_plies: args.early_draw_moves.saturating_mul(2),
     };
 
+    // Total work: every unordered pair plays `mini_matches` mini-matches (one
+    // "match" in the output), each of which is two games.
+    let pairs = configs.len() * (configs.len() - 1) / 2;
+    let total_matches = pairs * args.mini_matches as usize;
+    let total_games = total_matches * 2;
+
     println!(
         "Starting tournament: {} engines, {} mini-match(es)/pair from a book of {} positions, seed {}, concurrency {}",
         configs.len(),
@@ -88,6 +94,8 @@ fn main() -> Result<()> {
         seed,
         concurrency,
     );
+    println!("Total games: {total_games}");
+    println!("Total matches: {total_matches}");
     for cfg in &configs {
         println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
     }
