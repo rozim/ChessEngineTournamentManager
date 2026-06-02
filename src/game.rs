@@ -15,15 +15,33 @@ use crate::engine::{Engine, SearchRequest};
 /// Hard ceiling on plies, so a pathological game can never run forever.
 const MAX_PLIES: u32 = 600;
 
-/// Configurable early-draw adjudication. A game is declared a draw once it has
-/// reached `move_number`, and both engines' reported scores have stayed within
-/// ±`band_cp` centipawns for `required_plies` consecutive plies. Any score
-/// outside the band (including a mate score) resets the streak.
+/// Configurable game adjudication: an early-draw rule and an early-resign
+/// (loss) rule, applied after every move.
 #[derive(Copy, Clone, Debug)]
 pub struct Adjudication {
+    pub draw: DrawRule,
+    pub resign: ResignRule,
+}
+
+/// A game is declared a draw once it has reached `move_number`, and both
+/// engines' reported scores have stayed within ±`band_cp` centipawns for
+/// `required_plies` consecutive plies. Any score outside the band (including a
+/// mate score) resets the streak.
+#[derive(Copy, Clone, Debug)]
+pub struct DrawRule {
     pub enabled: bool,
     pub move_number: u32,
     pub band_cp: i32,
+    pub required_plies: u32,
+}
+
+/// A game is declared a loss for an engine once that engine's own reported
+/// score has stayed at or below -`cp` centipawns for `required_plies`
+/// consecutive plies. Any better score resets the streak.
+#[derive(Copy, Clone, Debug)]
+pub struct ResignRule {
+    pub enabled: bool,
+    pub cp: i32,
     pub required_plies: u32,
 }
 
@@ -69,6 +87,7 @@ pub enum Termination {
     FiftyMoveRule,
     Repetition,
     EarlyDraw,
+    EarlyResign,
     MaxPlies,
     TimeForfeit,
     IllegalMove,
@@ -83,6 +102,7 @@ impl Termination {
             Termination::FiftyMoveRule => "fifty-move rule",
             Termination::Repetition => "threefold repetition",
             Termination::EarlyDraw => "early_draw",
+            Termination::EarlyResign => "early_resign",
             Termination::MaxPlies => "move limit reached",
             Termination::TimeForfeit => "time forfeit",
             Termination::IllegalMove => "illegal move",
@@ -180,6 +200,9 @@ pub fn play_game(
     // early-draw adjudication.
     let mut latest_score: [Option<i32>; 2] = [None, None];
     let mut in_band_plies: u32 = 0;
+    // Consecutive plies each color's latest score has been at/below the resign
+    // threshold, for early-resign adjudication.
+    let mut losing_plies: [u32; 2] = [0, 0];
 
     let mut ply: u32 = 0;
     loop {
@@ -276,10 +299,31 @@ pub fn play_game(
         *seen.entry(repetition_key(&pos)).or_insert(0) += 1;
         ply += 1;
 
+        // Early-resign adjudication: if a color's own latest score has stayed
+        // at/below the resign threshold long enough, that color loses. Checked
+        // for both colors, since the streak can complete on the opponent's ply.
+        for color in [Color::White, Color::Black] {
+            let losing = matches!(latest_score[idx(color)], Some(cp) if cp <= -adj.resign.cp);
+            if losing {
+                losing_plies[idx(color)] += 1;
+            } else {
+                losing_plies[idx(color)] = 0;
+            }
+            if adj.resign.enabled && losing_plies[idx(color)] >= adj.resign.required_plies {
+                let result = match color {
+                    Color::White => GameResult::BlackWins,
+                    Color::Black => GameResult::WhiteWins,
+                };
+                return Ok(finish(result, Termination::EarlyResign, sans, time_used, start_fullmove, start_white_to_move));
+            }
+        }
+
         // Early-draw adjudication: require both engines' latest scores to stay
         // within the equality band; any breakout resets the streak.
         let both_balanced = match (latest_score[0], latest_score[1]) {
-            (Some(w), Some(b)) => within_band(w, adj.band_cp) && within_band(b, adj.band_cp),
+            (Some(w), Some(b)) => {
+                within_band(w, adj.draw.band_cp) && within_band(b, adj.draw.band_cp)
+            }
             _ => false,
         };
         if both_balanced {
@@ -287,9 +331,9 @@ pub fn play_game(
         } else {
             in_band_plies = 0;
         }
-        if adj.enabled
-            && pos.fullmoves().get() >= adj.move_number
-            && in_band_plies >= adj.required_plies
+        if adj.draw.enabled
+            && pos.fullmoves().get() >= adj.draw.move_number
+            && in_band_plies >= adj.draw.required_plies
         {
             return Ok(finish(GameResult::Draw, Termination::EarlyDraw, sans, time_used, start_fullmove, start_white_to_move));
         }

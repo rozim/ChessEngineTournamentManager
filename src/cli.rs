@@ -52,6 +52,19 @@ pub struct Args {
     #[arg(long, default_value_t = 8)]
     pub early_draw_moves: u32,
 
+    /// Disable early-resign (loss) adjudication (it is enabled by default).
+    #[arg(long)]
+    pub no_resign: bool,
+
+    /// Early resign: an engine loses if its own score stays at or below
+    /// -this many centipawns for the required number of moves.
+    #[arg(long, default_value_t = 400)]
+    pub resign_cp: i32,
+
+    /// Early resign: number of consecutive full moves the losing score must hold.
+    #[arg(long, default_value_t = 3)]
+    pub resign_moves: u32,
+
     /// JSON configuration files, one per engine (two or more required).
     #[arg(required = true, num_args = 2..)]
     pub configs: Vec<PathBuf>,

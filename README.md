@@ -55,6 +55,9 @@ cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
 | `--early-draw-after` | `34` | only adjudicate at/after this full move |
 | `--early-draw-cp` | `20` | equality band (centipawns) both engines must be within |
 | `--early-draw-moves` | `8` | consecutive full moves the band must hold |
+| `--no-resign` | off | disable early-resign (loss) adjudication |
+| `--resign-cp` | `400` | resign when an engine's score stays ≤ -this (centipawns) |
+| `--resign-moves` | `3` | consecutive full moves the losing score must hold |
 | `<configs>...` | — | 2+ engine JSON config files |
 
 **Early-draw adjudication** (on by default) ends a game as a draw once it has
@@ -63,6 +66,14 @@ reached `--early-draw-after`, if both engines report scores within
 outside the band resets the streak. Such games are reported with the
 `early_draw` termination reason (the result is still a draw). Engines that
 don't report a score are never adjudicated this way.
+
+**Early-resign adjudication** (on by default) ends a one-sided game once an
+engine's own reported score stays at or below `-{--resign-cp}` for
+`--resign-moves` consecutive full moves; the trailing engine is scored the
+loser (`early_resign` termination), saving time converting won positions. A
+better score resets the streak; engines that don't report a score are never
+resigned. There is no minimum-move requirement for resignation, so be cautious
+with low thresholds on gambit openings.
 
 With `--concurrency N`, each of the `N` workers runs its own set of engine
 processes (so roughly `N × engines` processes exist), and per-game stdout/PGN

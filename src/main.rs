@@ -74,10 +74,17 @@ fn main() -> Result<()> {
     let concurrency = args.concurrency.max(1);
 
     let adjudication = game::Adjudication {
-        enabled: !args.no_early_draw,
-        move_number: args.early_draw_after,
-        band_cp: args.early_draw_cp,
-        required_plies: args.early_draw_moves.saturating_mul(2),
+        draw: game::DrawRule {
+            enabled: !args.no_early_draw,
+            move_number: args.early_draw_after,
+            band_cp: args.early_draw_cp,
+            required_plies: args.early_draw_moves.saturating_mul(2),
+        },
+        resign: game::ResignRule {
+            enabled: !args.no_resign,
+            cp: args.resign_cp,
+            required_plies: args.resign_moves.saturating_mul(2),
+        },
     };
 
     // Total work: every unordered pair plays `mini_matches` mini-matches (one
@@ -99,13 +106,21 @@ fn main() -> Result<()> {
     for cfg in &configs {
         println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
     }
-    if adjudication.enabled {
+    if adjudication.draw.enabled {
         println!(
             "Early-draw adjudication: after move {}, within +-{}cp for {} moves",
-            adjudication.move_number, adjudication.band_cp, args.early_draw_moves,
+            adjudication.draw.move_number, adjudication.draw.band_cp, args.early_draw_moves,
         );
     } else {
         println!("Early-draw adjudication: disabled");
+    }
+    if adjudication.resign.enabled {
+        println!(
+            "Early-resign adjudication: at or below -{}cp for {} moves",
+            adjudication.resign.cp, args.resign_moves,
+        );
+    } else {
+        println!("Early-resign adjudication: disabled");
     }
 
     let standings = tournament::run(

@@ -23,6 +23,11 @@ Try to use the Rust crates: shakmaty, stockfish, pgn-reader
   consecutive full moves (default 8), the game is adjudicated a draw. Any score
   outside the band resets the streak. The end-of-game reason is reported as
   "early_draw" (not just "draw").
+- Configurable early-resign (loss) adjudication (enabled by default): if an
+  engine's own reported score stays at or below a threshold (default -400cp)
+  for a number of consecutive full moves (default 3), the game is scored as a
+  loss for that (trailing) engine. Any better score resets the streak. The
+  end-of-game reason is reported as "early_resign".
 - At the start of a game, tell each engine to clear their hash table.
 - There is no tournament-wide search mode. Each engine independently runs in
   one of three modes, chosen in its own JSON configuration:
@@ -84,6 +89,9 @@ Order the engines based on highest points first.
 - Early-draw adjudication settings: disable flag (default enabled); minimum
   full-move number (default 34); centipawn band (default 20); number of
   consecutive full moves (default 8).
+- Early-resign adjudication settings: disable flag (default enabled); resign
+  centipawn threshold (default 400, i.e. score <= -400); number of consecutive
+  full moves (default 3).
 - Positional arguments of JSON configuration files for each chess engine
 -- There must be 2 or more of these
 
