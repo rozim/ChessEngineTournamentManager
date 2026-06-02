@@ -29,6 +29,11 @@ Try to use the Rust crates: shakmaty, stockfish, pgn-reader
   loss for that (trailing) engine. Any better score resets the streak. The
   end-of-game reason is reported as "early_resign".
 - At the start of a game, tell each engine to clear their hash table.
+- Optional per-engine move weakening (configured in JSON): in balanced
+  positions (best-move eval within a centipawn band of 0), with a configurable
+  probability, play a good-but-not-best move chosen at random from the engine's
+  MultiPV candidates that are within a score margin of the best. Seeded from
+  --seed for reproducibility. Can be globally disabled with --no-weaken.
 - There is no tournament-wide search mode. Each engine independently runs in
   one of three modes, chosen in its own JSON configuration:
 -- time limited (base time and increment configured)
@@ -92,6 +97,7 @@ Order the engines based on highest points first.
 - Early-resign adjudication settings: disable flag (default enabled); resign
   centipawn threshold (default 400, i.e. score <= -400); number of consecutive
   full moves (default 3).
+- Global flag to disable per-engine move weakening (--no-weaken).
 - Positional arguments of JSON configuration files for each chess engine
 -- There must be 2 or more of these
 
@@ -107,6 +113,9 @@ Order the engines based on highest points first.
 -- time:  { "mode": "time", "seconds": <int>, "increment": <float seconds> }
 -- nodes: { "mode": "nodes", "nodes": <int> }
 -- depth: { "mode": "depth", "depth": <int> }
+- optional move weakening, an object "weaken" with fields: probability
+  (0..1, default 0.15), margin_cp (default 30), candidates / MultiPV
+  (default 4, must be >= 2), balance_cp (default 50), temperature (default 0).
 
 ### JSON Validation
 -- Across all the JSON engine configuration files, every engine must have a unique name

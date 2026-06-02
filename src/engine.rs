@@ -1,12 +1,13 @@
 //! A thin UCI driver around a child engine process.
 
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::config::{EngineConfig, SearchLimit};
+use crate::config::{EngineConfig, SearchLimit, WeakenConfig};
 
 /// A running UCI engine we can drive turn by turn.
 pub struct Engine {
@@ -16,6 +17,8 @@ pub struct Engine {
     pub id_name: String,
     /// This engine's own search limit (time, nodes, or depth).
     pub limit: SearchLimit,
+    /// Effective move-weakening settings (None if disabled globally or unset).
+    pub weaken: Option<WeakenConfig>,
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
@@ -23,10 +26,12 @@ pub struct Engine {
 
 impl Engine {
     /// Spawn the engine, perform the `uci` handshake, apply options, and wait
-    /// until it is ready.
-    pub fn start(cfg: &EngineConfig) -> Result<Engine> {
+    /// until it is ready. `weaken_enabled` is the global toggle; when false,
+    /// this engine's `weaken` config is ignored.
+    pub fn start(cfg: &EngineConfig, weaken_enabled: bool) -> Result<Engine> {
         // Normalized search limit (already validated when the config parsed).
         let limit = cfg.search_limit();
+        let weaken = if weaken_enabled { cfg.weaken } else { None };
 
         let mut child = Command::new(&cfg.path)
             .stdin(Stdio::piped())
@@ -50,6 +55,7 @@ impl Engine {
             name: cfg.name.clone(),
             id_name: cfg.name.clone(),
             limit,
+            weaken,
             child,
             stdin,
             stdout,
@@ -71,6 +77,12 @@ impl Engine {
         // Apply configured UCI options.
         for (key, value) in cfg.option_strings() {
             engine.send(&format!("setoption name {key} value {value}"))?;
+        }
+
+        // Weakening needs ranked alternatives, so request MultiPV lines. This
+        // is sent last so it takes precedence over any MultiPV in `options`.
+        if let Some(w) = weaken {
+            engine.send(&format!("setoption name MultiPV value {}", w.candidates))?;
         }
 
         engine.ready()?;
@@ -132,14 +144,15 @@ impl Engine {
     }
 
     /// Ask the engine for its best move under the given search limit. Returns
-    /// the move in UCI notation, the wall-clock time spent thinking, and the
-    /// last principal-variation score the engine reported (if any).
+    /// the authoritative best move, the ranked MultiPV candidates (each a first
+    /// move + its score, ordered best-first), and the wall-clock time spent.
+    /// With MultiPV 1 (the default) there is a single candidate: the best move.
     pub fn search(
         &mut self,
         start_fen: &str,
         moves: &[String],
         limit: &SearchRequest,
-    ) -> Result<(String, Duration, Option<i32>)> {
+    ) -> Result<SearchResult> {
         self.set_position(start_fen, moves)?;
         let go = match *limit {
             SearchRequest::Time {
@@ -155,11 +168,18 @@ impl Engine {
         let started = Instant::now();
         self.send(&go)?;
         let mut best = None;
-        let mut score = None;
+        // Latest (score, first PV move) seen per MultiPV index.
+        let mut lines: BTreeMap<u32, (Option<i32>, Option<String>)> = BTreeMap::new();
         self.read_until(|line| {
             if let Some(info) = line.strip_prefix("info ") {
-                if let Some(s) = parse_info_score(info) {
-                    score = Some(s);
+                if let Some((idx, score, mv)) = parse_info_line(info) {
+                    let entry = lines.entry(idx).or_default();
+                    if score.is_some() {
+                        entry.0 = score;
+                    }
+                    if mv.is_some() {
+                        entry.1 = mv;
+                    }
                 }
                 false
             } else if let Some(rest) = line.strip_prefix("bestmove ") {
@@ -172,9 +192,43 @@ impl Engine {
         let elapsed = started.elapsed();
 
         let best = best.ok_or_else(|| anyhow!("engine '{}' sent empty bestmove", self.name))?;
-        Ok((best, elapsed, score))
-    }
 
+        // Candidates ordered by MultiPV index (BTreeMap iterates ascending), so
+        // index 1 (the best line) comes first.
+        let mut candidates: Vec<Candidate> = lines
+            .into_values()
+            .filter_map(|(score, mv)| mv.map(|mv| Candidate { mv, score }))
+            .collect();
+        if candidates.is_empty() {
+            // Engine reported no usable PV line; fall back to the best move.
+            candidates.push(Candidate {
+                mv: best.clone(),
+                score: None,
+            });
+        }
+
+        Ok(SearchResult {
+            best,
+            candidates,
+            elapsed,
+        })
+    }
+}
+
+/// One MultiPV candidate: the line's first move and the engine's score for it.
+#[derive(Clone, Debug)]
+pub struct Candidate {
+    pub mv: String,
+    pub score: Option<i32>,
+}
+
+/// The result of a search: the best move, the ranked candidates (best-first),
+/// and the elapsed wall-clock time.
+#[derive(Clone, Debug)]
+pub struct SearchResult {
+    pub best: String,
+    pub candidates: Vec<Candidate>,
+    pub elapsed: Duration,
 }
 
 impl Drop for Engine {
@@ -194,26 +248,43 @@ impl Drop for Engine {
 /// reasonable equality band.
 pub const MATE_CP: i32 = 30_000;
 
-/// Extract the principal-variation score, in centipawns from the side-to-move's
-/// perspective, from a UCI `info` line body (text after "info "). A `mate`
-/// score folds to ±[`MATE_CP`]. Skips non-principal MultiPV lines.
-fn parse_info_score(info: &str) -> Option<i32> {
+/// Parse a UCI `info` line body (text after "info ") into its MultiPV index
+/// (defaulting to 1), its score in centipawns from the side-to-move's
+/// perspective (a `mate` score folds to ±[`MATE_CP`]), and the first move of
+/// its principal variation. Returns `None` for lines carrying neither a score
+/// nor a PV move (e.g. `info string`, `currmove`).
+fn parse_info_line(info: &str) -> Option<(u32, Option<i32>, Option<String>)> {
     let words: Vec<&str> = info.split_whitespace().collect();
-    if let Some(p) = words.iter().position(|&w| w == "multipv")
-        && words.get(p + 1).copied() != Some("1")
-    {
+
+    let multipv = words
+        .iter()
+        .position(|&w| w == "multipv")
+        .and_then(|p| words.get(p + 1))
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(1);
+
+    let score = words.iter().position(|&w| w == "score").and_then(|p| {
+        match words.get(p + 1).copied() {
+            Some("cp") => words.get(p + 2)?.parse::<i32>().ok(),
+            Some("mate") => words
+                .get(p + 2)?
+                .parse::<i32>()
+                .ok()
+                .map(|n| if n < 0 { -MATE_CP } else { MATE_CP }),
+            _ => None,
+        }
+    });
+
+    let first_move = words
+        .iter()
+        .position(|&w| w == "pv")
+        .and_then(|p| words.get(p + 1))
+        .map(|s| s.to_string());
+
+    if score.is_none() && first_move.is_none() {
         return None;
     }
-    let p = words.iter().position(|&w| w == "score")?;
-    match words.get(p + 1).copied() {
-        Some("cp") => words.get(p + 2)?.parse::<i32>().ok(),
-        Some("mate") => words
-            .get(p + 2)?
-            .parse::<i32>()
-            .ok()
-            .map(|n| if n < 0 { -MATE_CP } else { MATE_CP }),
-        _ => None,
-    }
+    Some((multipv, score, first_move))
 }
 
 /// The per-move search request handed to [`Engine::search`].

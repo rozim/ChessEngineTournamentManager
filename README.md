@@ -59,6 +59,7 @@ cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
 | `--resign-cp` | `400` | resign when an engine's score stays ≤ -this (centipawns) |
 | `--resign-moves` | `3` | consecutive full moves the losing score must hold |
 | `--debug-adjudication` | off | log per-move scores/streaks (and triggers) to stderr |
+| `--no-weaken` | off | globally disable all per-engine `weaken` blocks |
 | `<configs>...` | — | 2+ engine JSON config files |
 
 **Early-draw adjudication** (on by default) ends a game as a draw once it has
@@ -110,6 +111,24 @@ Each engine declares its own search limit via a `limit` object whose `mode` is
   - `{ "mode": "nodes", "nodes": <int> }`
   - `{ "mode": "depth", "depth": <int> }`
 - `options` — optional map of UCI options applied via `setoption`.
+- `weaken` — optional handicap that occasionally plays a good-but-not-best move
+  in **balanced** positions, to slightly weaken the engine:
+  - `probability` (default `0.15`) — per-move chance to deviate from the best.
+  - `margin_cp` (default `30`) — an alternative must be within this many
+    centipawns of the best move's score (keeps deviations decent).
+  - `candidates` (default `4`) — how many moves to consider; sets `MultiPV`.
+  - `balance_cp` (default `50`) — only deviate when the best score is within
+    ±this of 0 (so won/lost positions are played at full strength).
+  - `temperature` (default `0`) — `0` picks uniformly among eligible moves;
+    `> 0` softmax-weights toward better ones.
+
+  ```json
+  "weaken": { "probability": 0.15, "margin_cp": 30, "candidates": 4, "balance_cp": 50 }
+  ```
+
+  The choice is randomized from the run's `--seed` (per game, so reproducible
+  even under concurrency). Requires an engine that reports MultiPV scores
+  (Stockfish, lc0, maia3 all do). Disable for a whole run with `--no-weaken`.
 
 Validation (on load): exactly one mode with no extra/unknown fields; `seconds`
 > 0 and `increment` finite and ≥ 0; `nodes` > 0; `depth` > 0.

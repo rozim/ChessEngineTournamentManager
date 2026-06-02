@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 /// The search limit for one engine, as written in its JSON config. The `mode`
@@ -109,6 +109,51 @@ pub struct EngineConfig {
     /// Per-engine search limit. Required — every config must specify exactly
     /// one of time, nodes, or depth.
     pub limit: LimitConfig,
+    /// Optional move-weakening: occasionally play a decent non-best move in
+    /// balanced positions. Absent = full strength.
+    #[serde(default)]
+    pub weaken: Option<WeakenConfig>,
+}
+
+/// Optional per-engine handicap: in roughly balanced positions, with some
+/// probability, play a good-but-not-best move (chosen from the engine's
+/// MultiPV candidates) to slightly weaken it. See [`EngineConfig::validate`].
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WeakenConfig {
+    /// Per-move probability of deviating from the best move (0.0–1.0).
+    #[serde(default = "default_weaken_probability")]
+    pub probability: f64,
+    /// An alternative is eligible only if its score is within this many
+    /// centipawns of the best move's score (keeps deviations "decent").
+    #[serde(default = "default_weaken_margin")]
+    pub margin_cp: i32,
+    /// Number of candidate moves to consider; sets the engine's `MultiPV`.
+    #[serde(default = "default_weaken_candidates")]
+    pub candidates: u32,
+    /// Only weaken when the best move's score is within ±this of 0 (balanced).
+    #[serde(default = "default_weaken_balance")]
+    pub balance_cp: i32,
+    /// 0 = pick uniformly among eligible alternatives; > 0 = softmax weight by
+    /// closeness to the best score (smaller temperature favors better moves).
+    #[serde(default = "default_weaken_temperature")]
+    pub temperature: f64,
+}
+
+fn default_weaken_probability() -> f64 {
+    0.15
+}
+fn default_weaken_margin() -> i32 {
+    30
+}
+fn default_weaken_candidates() -> u32 {
+    4
+}
+fn default_weaken_balance() -> i32 {
+    50
+}
+fn default_weaken_temperature() -> f64 {
+    0.0
 }
 
 impl EngineConfig {
@@ -133,6 +178,28 @@ impl EngineConfig {
             LimitConfig::Nodes { nodes } => SearchLimit::Nodes(nodes),
             LimitConfig::Depth { depth } => SearchLimit::Depth(depth),
         }
+    }
+
+    /// Validate the optional weakening settings.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(w) = self.weaken {
+            if !w.probability.is_finite() || !(0.0..=1.0).contains(&w.probability) {
+                bail!("engine '{}': weaken.probability must be between 0 and 1", self.name);
+            }
+            if w.candidates < 2 {
+                bail!("engine '{}': weaken.candidates must be at least 2", self.name);
+            }
+            if w.margin_cp < 0 {
+                bail!("engine '{}': weaken.margin_cp must not be negative", self.name);
+            }
+            if w.balance_cp < 0 {
+                bail!("engine '{}': weaken.balance_cp must not be negative", self.name);
+            }
+            if !w.temperature.is_finite() || w.temperature < 0.0 {
+                bail!("engine '{}': weaken.temperature must be finite and non-negative", self.name);
+            }
+        }
+        Ok(())
     }
 
     /// Render the configured UCI option values as the strings expected by the

@@ -9,8 +9,11 @@ use shakmaty::san::SanPlus;
 use shakmaty::uci::UciMove;
 use shakmaty::{Chess, Color, EnPassantMode, KnownOutcome, Outcome, Position};
 
-use crate::config::SearchLimit;
-use crate::engine::{Engine, SearchRequest};
+use rand::rngs::StdRng;
+use rand::{RngExt, SeedableRng};
+
+use crate::config::{SearchLimit, WeakenConfig};
+use crate::engine::{Candidate, Engine, SearchRequest, SearchResult, MATE_CP};
 
 /// Hard ceiling on plies, so a pathological game can never run forever.
 const MAX_PLIES: u32 = 600;
@@ -50,6 +53,79 @@ pub struct ResignRule {
 /// Whether a reported score (centipawns) counts as "near equality".
 fn within_band(score_cp: i32, band_cp: i32) -> bool {
     score_cp.abs() <= band_cp
+}
+
+/// A score magnitude at/above this is treated as a (near-)mate; never weaken.
+fn is_mate(score_cp: i32) -> bool {
+    score_cp.abs() >= MATE_CP
+}
+
+/// Pick the move to actually play. Normally the engine's best move, but if
+/// weakening is enabled and the position is balanced (best score near 0, not a
+/// mate), occasionally return a decent alternative within the score margin.
+fn choose_move<'a>(
+    result: &'a SearchResult,
+    weaken: Option<WeakenConfig>,
+    rng: &mut StdRng,
+) -> &'a str {
+    let best = result.best.as_str();
+    let w = match weaken {
+        Some(w) if w.probability > 0.0 => w,
+        _ => return best,
+    };
+    if result.candidates.len() < 2 {
+        return best;
+    }
+    let best_score = match result.candidates[0].score {
+        Some(s) => s,
+        None => return best,
+    };
+    // Only weaken in balanced, non-mate positions.
+    if is_mate(best_score) || best_score.abs() > w.balance_cp {
+        return best;
+    }
+    // Eligible alternatives: not the best line, with a score within the margin.
+    let acceptable: Vec<&Candidate> = result.candidates[1..]
+        .iter()
+        .filter(|c| c.score.is_some_and(|s| best_score - s <= w.margin_cp))
+        .collect();
+    if acceptable.is_empty() {
+        return best;
+    }
+    // Randomized decision to deviate this move.
+    if rng.random_range(0.0..1.0) >= w.probability {
+        return best;
+    }
+    pick(&acceptable, best_score, w.temperature, rng).mv.as_str()
+}
+
+/// Choose one eligible alternative: uniformly when `temperature` is 0, else
+/// softmax-weighted by how little it loses against the best score.
+fn pick<'a>(
+    acceptable: &[&'a Candidate],
+    best_score: i32,
+    temperature: f64,
+    rng: &mut StdRng,
+) -> &'a Candidate {
+    if temperature <= 0.0 {
+        return acceptable[rng.random_range(0..acceptable.len())];
+    }
+    let weights: Vec<f64> = acceptable
+        .iter()
+        .map(|c| {
+            let loss = (best_score - c.score.unwrap()) as f64;
+            (-loss / temperature).exp()
+        })
+        .collect();
+    let total: f64 = weights.iter().sum();
+    let mut r = rng.random_range(0.0..total);
+    for (i, weight) in weights.iter().enumerate() {
+        r -= weight;
+        if r <= 0.0 {
+            return acceptable[i];
+        }
+    }
+    acceptable[acceptable.len() - 1]
 }
 
 /// The outcome of a single game from White's point of view.
@@ -169,6 +245,7 @@ pub fn play_game(
     start_fen: &str,
     adj: Adjudication,
     game_no: u32,
+    seed: u64,
 ) -> Result<GameRecord> {
     let fen: Fen = start_fen
         .parse()
@@ -206,6 +283,11 @@ pub fn play_game(
     // Consecutive plies each color's latest score has been at/below the resign
     // threshold, for early-resign adjudication.
     let mut losing_plies: [u32; 2] = [0, 0];
+
+    // Per-game RNG for move weakening, seeded deterministically from the global
+    // seed and game number so runs are reproducible regardless of concurrency.
+    let mut weaken_rng =
+        StdRng::seed_from_u64(seed ^ (game_no as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
 
     let mut ply: u32 = 0;
     loop {
@@ -265,9 +347,12 @@ pub fn play_game(
             }
         };
 
-        let (uci_str, elapsed, score) = mover.search(start_fen, &moves, &request)?;
+        let result = mover.search(start_fen, &moves, &request)?;
+        let elapsed = result.elapsed;
         time_used[idx(side)] += elapsed;
-        if let Some(s) = score {
+        // Track the engine's own (best-move) evaluation for adjudication.
+        let principal = result.candidates.first().and_then(|c| c.score);
+        if let Some(s) = principal {
             latest_score[idx(side)] = Some(s);
         }
 
@@ -282,8 +367,12 @@ pub fn play_game(
             *clock = *clock - elapsed_ms + inc_ms;
         }
 
+        // Optionally substitute a decent non-best move to slightly weaken the
+        // engine in balanced positions.
+        let chosen = choose_move(&result, mover.weaken, &mut weaken_rng);
+
         // Parse and validate the move; anything illegal forfeits the game.
-        let parsed = uci_str
+        let parsed = chosen
             .parse::<UciMove>()
             .ok()
             .and_then(|uci| uci.to_move(&pos).ok());
@@ -333,7 +422,7 @@ pub fn play_game(
                 "[adj g{game_no}] ply {ply} move {fullmove} {mover} moved score={this} | latest W={lw} B={lb} | resign W={rw} B={rb} (need {rp}) | drawstreak {ds} (need {dp})",
                 fullmove = pos.fullmoves().get(),
                 mover = if side == Color::White { "W" } else { "B" },
-                this = fmt(score),
+                this = fmt(principal),
                 lw = fmt(latest_score[0]),
                 lb = fmt(latest_score[1]),
                 rw = losing_plies[0],

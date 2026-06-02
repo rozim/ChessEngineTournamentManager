@@ -70,6 +70,11 @@ pub struct Args {
     #[arg(long)]
     pub debug_adjudication: bool,
 
+    /// Globally disable per-engine move weakening (the "weaken" JSON blocks),
+    /// e.g. for a full-strength A/B run without editing configs.
+    #[arg(long)]
+    pub no_weaken: bool,
+
     /// JSON configuration files, one per engine (two or more required).
     #[arg(required = true, num_args = 2..)]
     pub configs: Vec<PathBuf>,

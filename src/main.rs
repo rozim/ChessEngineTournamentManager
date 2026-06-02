@@ -36,6 +36,7 @@ fn validate_configs(configs: &[EngineConfig]) -> Result<()> {
                 cfg.path
             );
         }
+        cfg.validate()?;
     }
     Ok(())
 }
@@ -72,6 +73,7 @@ fn main() -> Result<()> {
     // Resolve the opening seed; print it so the run can be reproduced.
     let seed = args.seed.unwrap_or_else(rand::random::<u64>);
     let concurrency = args.concurrency.max(1);
+    let weaken_enabled = !args.no_weaken;
 
     let adjudication = game::Adjudication {
         draw: game::DrawRule {
@@ -105,7 +107,14 @@ fn main() -> Result<()> {
     println!("Total games: {total_games}");
     println!("Total matches: {total_matches}");
     for cfg in &configs {
-        println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
+        let weaken = match (weaken_enabled, cfg.weaken) {
+            (true, Some(w)) => format!(
+                "  [weaken p={} margin={}cp balance={}cp cand={}]",
+                w.probability, w.margin_cp, w.balance_cp, w.candidates
+            ),
+            _ => String::new(),
+        };
+        println!("  {} -> {}{}", cfg.name, cfg.pgn_configuration(), weaken);
     }
     if adjudication.draw.enabled {
         println!(
@@ -132,6 +141,7 @@ fn main() -> Result<()> {
         seed,
         concurrency,
         adjudication,
+        weaken_enabled,
     )?;
 
     tournament::print_standings(&standings);

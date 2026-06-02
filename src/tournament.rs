@@ -101,6 +101,7 @@ struct Shared {
 }
 
 /// Run the whole tournament and return the final standings.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     configs: &[EngineConfig],
     positions: &[String],
@@ -109,6 +110,7 @@ pub fn run(
     seed: u64,
     concurrency: usize,
     adj: Adjudication,
+    weaken_enabled: bool,
 ) -> Result<Vec<Standing>> {
     let openings = select_openings(positions, mini_matches, seed);
     let tasks = build_tasks(configs.len(), mini_matches);
@@ -132,8 +134,10 @@ pub fn run(
                 // Each worker runs its own set of engine processes; hash tables
                 // are cleared per game via ucinewgame. Engines are shut down by
                 // Engine's Drop impl when this closure returns (any path).
-                let mut engines: Vec<Engine> =
-                    configs.iter().map(Engine::start).collect::<Result<_>>()?;
+                let mut engines: Vec<Engine> = configs
+                    .iter()
+                    .map(|c| Engine::start(c, weaken_enabled))
+                    .collect::<Result<_>>()?;
 
                 loop {
                     let t = cursor.fetch_add(1, Ordering::Relaxed);
@@ -146,7 +150,7 @@ pub fn run(
                     let record = {
                         let (white, black) =
                             pair_mut(&mut engines, task.white_idx, task.black_idx);
-                        play_game(white, black, opening, adj, task.game_no)?
+                        play_game(white, black, opening, adj, task.game_no, seed)?
                     };
 
                     let white_id = engines[task.white_idx].id_name.clone();
