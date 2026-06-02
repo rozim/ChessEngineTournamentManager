@@ -211,11 +211,10 @@ pub fn play_game(
             }
         };
 
-        // Record SAN (with check/mate suffix) and the UCI move, then play it.
-        let san = SanPlus::from_move(pos.clone(), mv).to_string();
-        sans.push(san);
+        // Record the UCI move, then compute its SAN (with check/mate suffix)
+        // and play it in a single pass — no position clone needed.
         moves.push(UciMove::from_move(mv, shakmaty::CastlingMode::Standard).to_string());
-        pos.play_unchecked(mv);
+        sans.push(SanPlus::from_move_and_play_unchecked(&mut pos, mv).to_string());
 
         *seen.entry(repetition_key(&pos)).or_insert(0) += 1;
         ply += 1;
