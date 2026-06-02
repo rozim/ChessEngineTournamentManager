@@ -2,6 +2,7 @@
 //! report standings.
 
 use std::collections::HashSet;
+use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -187,6 +188,9 @@ pub fn run(
                         res = record.result.phrase(),
                         term = record.termination.description(),
                     );
+                    // Flush so progress is visible immediately when stdout is
+                    // redirected to a file (e.g. `tail -f`).
+                    let _ = std::io::stdout().flush();
                     sh.pgn.write_game(
                         "Chess Engine Tournament",
                         &format!("{}.{}", task.match_no, task.game_in_match),

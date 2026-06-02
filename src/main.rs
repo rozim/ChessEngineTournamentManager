@@ -132,6 +132,8 @@ fn main() -> Result<()> {
     } else {
         println!("Early-resign adjudication: disabled");
     }
+    // Flush the banner so it shows up immediately under `tail -f`.
+    let _ = std::io::Write::flush(&mut std::io::stdout());
 
     let standings = tournament::run(
         &configs,
