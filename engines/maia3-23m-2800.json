@@ -2,5 +2,5 @@
   "path": "/Users/dave/venv-maia3/bin/maia3-23m",
   "name": "Maia3-23m-2800",
   "limit": { "mode": "nodes", "nodes": 1 },
-  "options": { "Elo": 2800 }
+  "options": { "Elo": 2800, "MultiPV": 1 }
 }
