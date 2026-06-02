@@ -89,6 +89,10 @@ Only time-limited engines are clocked and can lose on time; node- and
 depth-limited engines are never timed (their wall-clock thinking time is still
 reported). Engines with different modes can play each other.
 
+Sample configs are in `engines/`. For MCTS engines like **lc0**, use `time` or
+`nodes` (visits) rather than `depth`, which is not meaningful for them; see
+`engines/lc0.json` (it relies on lc0's auto-discovered network).
+
 ## Output
 
 - **`match.pgn`** — truncated on startup, then one PGN game appended (and
