@@ -125,9 +125,9 @@ Sample configs are in `engines/`. For MCTS engines like **lc0**, use `time` or
 ## Output
 
 - **`match.pgn`** — truncated on startup, then one PGN game appended (and
-  flushed) per game. Includes standard tags plus `X_White_Id_Name` /
-  `X_Black_Id_Name` (the engines' `id name` strings), `X_White_Configuration` /
-  `X_Black_Configuration` (each engine's search config), and a `Termination` tag.
+  flushed) per game. Includes standard tags plus `XWhiteIdName` /
+  `XBlackIdName` (the engines' `id name` strings), `XWhiteConfiguration` /
+  `XBlackConfiguration` (each engine's search config), and a `Termination` tag.
 - **stdout** — one line per finished game (engines, result, time used, game and
   match numbers, and the starting FEN), followed by a final standings table
   ordered by points, with win/draw/loss counts and a relative Elo estimate.
