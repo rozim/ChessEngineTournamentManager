@@ -1,0 +1,6 @@
+{
+  "path": "/usr/local/bin/stockfish",
+  "name": "Stockfish-Nodes-10k-Wide",
+  "limit": { "mode": "nodes", "nodes": 10000 },
+  "weaken": { "probability": 0.30, "margin_cp": 40, "candidates": 4, "balance_cp": 120 }
+}
