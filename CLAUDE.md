@@ -50,9 +50,9 @@ Try to use the Rust crates: shakmaty, stockfish, pgn-reader
 - Write each game in PGN to the file.
 - After one game is written, flush the output buffer.
 - For "White" and "Black" use the engine name from JSON config
-- Add tags "X-White-Id-Name" and "X-Black-Id-Name" for the 'id name ...' each
+- Add tags "X_White_Id_Name" and "X_Black_Id_Name" for the 'id name ...' each
   engine reports after the "uci" command is sent to it.
-- Add tags "X-White-Configuration" and "X-Black-Configuration" describing each
+- Add tags "X_White_Configuration" and "X_Black_Configuration" describing each
   engine's search configuration (its mode and parameters, plus UCI options).
 
 ### Stdout

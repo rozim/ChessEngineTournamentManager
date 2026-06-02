@@ -57,10 +57,10 @@ impl PgnWriter {
         tag(&mut self.out, "SetUp", "1")?;
         tag(&mut self.out, "FEN", start_fen)?;
         tag(&mut self.out, "Termination", game.termination.description())?;
-        tag(&mut self.out, "X-White-Id-Name", white_id)?;
-        tag(&mut self.out, "X-Black-Id-Name", black_id)?;
-        tag(&mut self.out, "X-White-Configuration", white_config)?;
-        tag(&mut self.out, "X-Black-Configuration", black_config)?;
+        tag(&mut self.out, "X_White_Id_Name", white_id)?;
+        tag(&mut self.out, "X_Black_Id_Name", black_id)?;
+        tag(&mut self.out, "X_White_Configuration", white_config)?;
+        tag(&mut self.out, "X_Black_Configuration", black_config)?;
         writeln!(self.out)?;
 
         let body = movetext(game);

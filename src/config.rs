@@ -153,7 +153,7 @@ impl EngineConfig {
     }
 
     /// A compact one-line description of this engine's search configuration,
-    /// used for the `X-White-Configuration` / `X-Black-Configuration` PGN tags.
+    /// used for the `X_White_Configuration` / `X_Black_Configuration` PGN tags.
     pub fn pgn_configuration(&self) -> String {
         let limit = match &self.limit {
             LimitConfig::Time { seconds, increment } => format!("time {seconds}s+{increment}s"),
