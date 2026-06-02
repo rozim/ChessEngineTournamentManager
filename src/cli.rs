@@ -74,9 +74,12 @@ impl Args {
                     bail!("--nodes is not allowed in time mode");
                 }
                 let base_s = self.seconds.unwrap_or(60);
+                if base_s == 0 {
+                    bail!("--seconds must be greater than zero");
+                }
                 let inc_s = self.increment.unwrap_or(0.1);
-                if inc_s < 0.0 {
-                    bail!("--increment must not be negative");
+                if !inc_s.is_finite() || inc_s < 0.0 {
+                    bail!("--increment must be a finite, non-negative number");
                 }
                 Ok(Limit::Time(TimeControl {
                     base_ms: base_s.saturating_mul(1000),
