@@ -17,6 +17,12 @@ Try to use the Rust crates: shakmaty, stockfish, pgn-reader
   selection is seeded (--seed) and thus reproducible; both games of a given
   mini-match start from that mini-match's opening.
 - Detect end of game: mate, draw, lack of sufficient material, too many moves without progress.
+- Configurable early-draw adjudication (enabled by default): once the game has
+  reached a configurable full-move number (default 34), if both engines report
+  scores within a centipawn band of equality (default +-20cp) for a number of
+  consecutive full moves (default 8), the game is adjudicated a draw. Any score
+  outside the band resets the streak. The end-of-game reason is reported as
+  "early_draw" (not just "draw").
 - At the start of a game, tell each engine to clear their hash table.
 - There is no tournament-wide search mode. Each engine independently runs in
   one of three modes, chosen in its own JSON configuration:
@@ -75,6 +81,9 @@ Order the engines based on highest points first.
   used and printed when omitted, so any run can be reproduced.
 - Concurrency: number of games to play in parallel. Default 1. Each parallel
   worker runs its own set of engine processes.
+- Early-draw adjudication settings: disable flag (default enabled); minimum
+  full-move number (default 34); centipawn band (default 20); number of
+  consecutive full moves (default 8).
 - Positional arguments of JSON configuration files for each chess engine
 -- There must be 2 or more of these
 

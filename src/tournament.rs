@@ -13,7 +13,7 @@ use rand::{RngExt, SeedableRng};
 use crate::config::EngineConfig;
 use crate::elo::Standing;
 use crate::engine::Engine;
-use crate::game::{play_game, GameResult};
+use crate::game::{play_game, Adjudication, GameResult};
 use crate::pgn::PgnWriter;
 
 /// Borrow two distinct elements of a slice mutably at the same time.
@@ -108,6 +108,7 @@ pub fn run(
     date: &str,
     seed: u64,
     concurrency: usize,
+    adj: Adjudication,
 ) -> Result<Vec<Standing>> {
     let openings = select_openings(positions, mini_matches, seed);
     let tasks = build_tasks(configs.len(), mini_matches);
@@ -143,7 +144,7 @@ pub fn run(
                     let record = {
                         let (white, black) =
                             pair_mut(&mut engines, task.white_idx, task.black_idx);
-                        play_game(white, black, opening)?
+                        play_game(white, black, opening, adj)?
                     };
 
                     let white_id = engines[task.white_idx].id_name.clone();

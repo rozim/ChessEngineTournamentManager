@@ -73,6 +73,13 @@ fn main() -> Result<()> {
     let seed = args.seed.unwrap_or_else(rand::random::<u64>);
     let concurrency = args.concurrency.max(1);
 
+    let adjudication = game::Adjudication {
+        enabled: !args.no_early_draw,
+        move_number: args.early_draw_after,
+        band_cp: args.early_draw_cp,
+        required_plies: args.early_draw_moves.saturating_mul(2),
+    };
+
     println!(
         "Starting tournament: {} engines, {} mini-match(es)/pair from a book of {} positions, seed {}, concurrency {}",
         configs.len(),
@@ -84,9 +91,24 @@ fn main() -> Result<()> {
     for cfg in &configs {
         println!("  {} -> {}", cfg.name, cfg.pgn_configuration());
     }
+    if adjudication.enabled {
+        println!(
+            "Early-draw adjudication: after move {}, within +-{}cp for {} moves",
+            adjudication.move_number, adjudication.band_cp, args.early_draw_moves,
+        );
+    } else {
+        println!("Early-draw adjudication: disabled");
+    }
 
-    let standings =
-        tournament::run(&configs, &positions, args.mini_matches, date, seed, concurrency)?;
+    let standings = tournament::run(
+        &configs,
+        &positions,
+        args.mini_matches,
+        date,
+        seed,
+        concurrency,
+        adjudication,
+    )?;
 
     tournament::print_standings(&standings);
     println!("\nGames written to match.pgn");

@@ -35,6 +35,23 @@ pub struct Args {
     #[arg(long, default_value_t = 1)]
     pub concurrency: usize,
 
+    /// Disable early-draw adjudication (it is enabled by default).
+    #[arg(long)]
+    pub no_early_draw: bool,
+
+    /// Early draw: only adjudicate once this full-move number is reached.
+    #[arg(long, default_value_t = 34)]
+    pub early_draw_after: u32,
+
+    /// Early draw: equality band in centipawns; both engines must report a
+    /// score within ±this value.
+    #[arg(long, default_value_t = 20)]
+    pub early_draw_cp: i32,
+
+    /// Early draw: number of consecutive full moves the band must hold.
+    #[arg(long, default_value_t = 8)]
+    pub early_draw_moves: u32,
+
     /// JSON configuration files, one per engine (two or more required).
     #[arg(required = true, num_args = 2..)]
     pub configs: Vec<PathBuf>,

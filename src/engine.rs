@@ -132,13 +132,14 @@ impl Engine {
     }
 
     /// Ask the engine for its best move under the given search limit. Returns
-    /// the move in UCI notation and the wall-clock time spent thinking.
+    /// the move in UCI notation, the wall-clock time spent thinking, and the
+    /// last principal-variation score the engine reported (if any).
     pub fn search(
         &mut self,
         start_fen: &str,
         moves: &[String],
         limit: &SearchRequest,
-    ) -> Result<(String, Duration)> {
+    ) -> Result<(String, Duration, Option<i32>)> {
         self.set_position(start_fen, moves)?;
         let go = match *limit {
             SearchRequest::Time {
@@ -154,8 +155,14 @@ impl Engine {
         let started = Instant::now();
         self.send(&go)?;
         let mut best = None;
+        let mut score = None;
         self.read_until(|line| {
-            if let Some(rest) = line.strip_prefix("bestmove ") {
+            if let Some(info) = line.strip_prefix("info ") {
+                if let Some(s) = parse_info_score(info) {
+                    score = Some(s);
+                }
+                false
+            } else if let Some(rest) = line.strip_prefix("bestmove ") {
                 best = rest.split_whitespace().next().map(|s| s.to_string());
                 true
             } else {
@@ -165,7 +172,7 @@ impl Engine {
         let elapsed = started.elapsed();
 
         let best = best.ok_or_else(|| anyhow!("engine '{}' sent empty bestmove", self.name))?;
-        Ok((best, elapsed))
+        Ok((best, elapsed, score))
     }
 
 }
@@ -180,6 +187,32 @@ impl Drop for Engine {
         let _ = self.send("quit");
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+/// Magnitude a mate score folds to, so it always sits well outside any
+/// reasonable equality band.
+pub const MATE_CP: i32 = 30_000;
+
+/// Extract the principal-variation score, in centipawns from the side-to-move's
+/// perspective, from a UCI `info` line body (text after "info "). A `mate`
+/// score folds to ±[`MATE_CP`]. Skips non-principal MultiPV lines.
+fn parse_info_score(info: &str) -> Option<i32> {
+    let words: Vec<&str> = info.split_whitespace().collect();
+    if let Some(p) = words.iter().position(|&w| w == "multipv")
+        && words.get(p + 1).copied() != Some("1")
+    {
+        return None;
+    }
+    let p = words.iter().position(|&w| w == "score")?;
+    match words.get(p + 1).copied() {
+        Some("cp") => words.get(p + 2)?.parse::<i32>().ok(),
+        Some("mate") => words
+            .get(p + 2)?
+            .parse::<i32>()
+            .ok()
+            .map(|n| if n < 0 { -MATE_CP } else { MATE_CP }),
+        _ => None,
     }
 }
 

@@ -15,6 +15,23 @@ use crate::engine::{Engine, SearchRequest};
 /// Hard ceiling on plies, so a pathological game can never run forever.
 const MAX_PLIES: u32 = 600;
 
+/// Configurable early-draw adjudication. A game is declared a draw once it has
+/// reached `move_number`, and both engines' reported scores have stayed within
+/// ±`band_cp` centipawns for `required_plies` consecutive plies. Any score
+/// outside the band (including a mate score) resets the streak.
+#[derive(Copy, Clone, Debug)]
+pub struct Adjudication {
+    pub enabled: bool,
+    pub move_number: u32,
+    pub band_cp: i32,
+    pub required_plies: u32,
+}
+
+/// Whether a reported score (centipawns) counts as "near equality".
+fn within_band(score_cp: i32, band_cp: i32) -> bool {
+    score_cp.abs() <= band_cp
+}
+
 /// The outcome of a single game from White's point of view.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GameResult {
@@ -51,6 +68,7 @@ pub enum Termination {
     InsufficientMaterial,
     FiftyMoveRule,
     Repetition,
+    EarlyDraw,
     MaxPlies,
     TimeForfeit,
     IllegalMove,
@@ -64,6 +82,7 @@ impl Termination {
             Termination::InsufficientMaterial => "insufficient material",
             Termination::FiftyMoveRule => "fifty-move rule",
             Termination::Repetition => "threefold repetition",
+            Termination::EarlyDraw => "early_draw",
             Termination::MaxPlies => "move limit reached",
             Termination::TimeForfeit => "time forfeit",
             Termination::IllegalMove => "illegal move",
@@ -126,6 +145,7 @@ pub fn play_game(
     white: &mut Engine,
     black: &mut Engine,
     start_fen: &str,
+    adj: Adjudication,
 ) -> Result<GameRecord> {
     let fen: Fen = start_fen
         .parse()
@@ -155,6 +175,11 @@ pub fn play_game(
 
     // Per-color clocks (milliseconds), present only for time-limited engines.
     let mut clocks: [Option<u64>; 2] = [starting_clock(limits[0]), starting_clock(limits[1])];
+
+    // Latest reported score per color and the running in-band streak, for
+    // early-draw adjudication.
+    let mut latest_score: [Option<i32>; 2] = [None, None];
+    let mut in_band_plies: u32 = 0;
 
     let mut ply: u32 = 0;
     loop {
@@ -214,8 +239,11 @@ pub fn play_game(
             }
         };
 
-        let (uci_str, elapsed) = mover.search(start_fen, &moves, &request)?;
+        let (uci_str, elapsed, score) = mover.search(start_fen, &moves, &request)?;
         time_used[idx(side)] += elapsed;
+        if let Some(s) = score {
+            latest_score[idx(side)] = Some(s);
+        }
 
         // Timekeeping applies only to the time-limited engine: deduct the
         // elapsed time from its clock and forfeit if it overran.
@@ -247,6 +275,24 @@ pub fn play_game(
 
         *seen.entry(repetition_key(&pos)).or_insert(0) += 1;
         ply += 1;
+
+        // Early-draw adjudication: require both engines' latest scores to stay
+        // within the equality band; any breakout resets the streak.
+        let both_balanced = match (latest_score[0], latest_score[1]) {
+            (Some(w), Some(b)) => within_band(w, adj.band_cp) && within_band(b, adj.band_cp),
+            _ => false,
+        };
+        if both_balanced {
+            in_band_plies += 1;
+        } else {
+            in_band_plies = 0;
+        }
+        if adj.enabled
+            && pos.fullmoves().get() >= adj.move_number
+            && in_band_plies >= adj.required_plies
+        {
+            return Ok(finish(GameResult::Draw, Termination::EarlyDraw, sans, time_used, start_fullmove, start_white_to_move));
+        }
     }
 }
 

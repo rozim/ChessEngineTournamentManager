@@ -51,7 +51,18 @@ cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
 | `--mini-matches` | `1` | mini-matches per engine pair |
 | `--seed` | random | seed for the shared opening set (printed if omitted) |
 | `--concurrency` | `1` | number of games to play in parallel |
+| `--no-early-draw` | off | disable early-draw adjudication |
+| `--early-draw-after` | `34` | only adjudicate at/after this full move |
+| `--early-draw-cp` | `20` | equality band (centipawns) both engines must be within |
+| `--early-draw-moves` | `8` | consecutive full moves the band must hold |
 | `<configs>...` | — | 2+ engine JSON config files |
+
+**Early-draw adjudication** (on by default) ends a game as a draw once it has
+reached `--early-draw-after`, if both engines report scores within
+`±--early-draw-cp` for `--early-draw-moves` consecutive full moves; any score
+outside the band resets the streak. Such games are reported with the
+`early_draw` termination reason (the result is still a draw). Engines that
+don't report a score are never adjudicated this way.
 
 With `--concurrency N`, each of the `N` workers runs its own set of engine
 processes (so roughly `N × engines` processes exist), and per-game stdout/PGN
