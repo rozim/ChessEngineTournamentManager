@@ -224,14 +224,22 @@ pub fn print_standings(standings: &[Standing]) {
             .then(b.relative_elo().partial_cmp(&a.relative_elo()).unwrap())
     });
 
+    // Size the Engine column to the longest name (and the header).
+    let name_w = standings
+        .iter()
+        .map(|s| s.name.len())
+        .max()
+        .unwrap_or(0)
+        .max("Engine".len());
+
     println!("\nFinal standings:");
     println!(
-        "{:>3}  {:<24} {:>6} {:>4} {:>4} {:>4} {:>7} {:>9}",
+        "{:>3}  {:<name_w$} {:>6} {:>4} {:>4} {:>4} {:>7} {:>9}",
         "#", "Engine", "Pts", "W", "D", "L", "Games", "Rel.Elo"
     );
     for (rank, s) in ranked.iter().enumerate() {
         println!(
-            "{:>3}  {:<24} {:>6.1} {:>4} {:>4} {:>4} {:>7} {:>+9.1}",
+            "{:>3}  {:<name_w$} {:>6.1} {:>4} {:>4} {:>4} {:>7} {:>+9.1}",
             rank + 1,
             s.name,
             s.points(),
