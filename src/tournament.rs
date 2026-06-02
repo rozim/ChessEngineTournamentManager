@@ -113,9 +113,9 @@ pub fn run(
         }
     }
 
-    for engine in engines {
-        engine.quit();
-    }
+    // Engines are shut down by `Engine`'s `Drop` impl when `engines` goes out
+    // of scope here — which also covers the early-return error paths above.
+    drop(engines);
 
     Ok(standings)
 }

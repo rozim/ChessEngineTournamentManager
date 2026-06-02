@@ -162,9 +162,17 @@ impl Engine {
         Ok((best, elapsed))
     }
 
-    /// Politely ask the engine to quit, then reap the process.
-    pub fn quit(mut self) {
+}
+
+impl Drop for Engine {
+    /// Ensure the child process is always terminated and reaped, on every code
+    /// path (normal end, early error, or panic). `std::process::Child` does not
+    /// kill on drop, so without this a failed run would leave engines running.
+    fn drop(&mut self) {
+        // Ask politely first, then force the issue so a wedged engine can never
+        // make cleanup hang.
         let _ = self.send("quit");
+        let _ = self.child.kill();
         let _ = self.child.wait();
     }
 }
