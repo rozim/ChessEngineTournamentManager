@@ -1,0 +1,5 @@
+{
+  "path": "/usr/local/bin/stockfish",
+  "name": "Stockfish-Nodes-100k",
+  "limit": { "mode": "nodes", "nodes": 100000 },
+}

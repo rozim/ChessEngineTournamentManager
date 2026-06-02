@@ -1,0 +1,6 @@
+{
+  "path": "/opt/homebrew/bin/lc0",
+  "name": "Lc0-5k",
+  "limit": { "mode": "nodes", "nodes": 5000 },
+  "options": { "Threads": 1 }
+}
