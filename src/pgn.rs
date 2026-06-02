@@ -62,7 +62,14 @@ impl PgnWriter {
         writeln!(self.out)?;
 
         let body = movetext(game);
-        writeln!(self.out, "{body} {}", game.result.pgn())?;
+        let result = game.result.pgn();
+        // A game can have no recorded moves (e.g. an immediate forfeit); avoid
+        // emitting a leading space before the result token in that case.
+        if body.is_empty() {
+            writeln!(self.out, "{result}")?;
+        } else {
+            writeln!(self.out, "{body} {result}")?;
+        }
         writeln!(self.out)?;
 
         self.out.flush().context("flushing PGN file")?;
