@@ -1,0 +1,39 @@
+nice time  ./target/release/chess_tournament_manager --concurrency=4 --mini-matches=10 engines/*weaken* >& weaken-log.txt
+...
+Starting tournament: 12 engines, 10 mini-match(es)/pair from a book of 241670 positions, seed 13673937297914893048, concurrency 4
+Total games: 1320
+Total matches: 660
+  Stockfish-Nodes-10k-Weaken-Aggressive -> nodes 10000  [weaken p=0.5 margin=60cp balance=80cp cand=5]
+  Stockfish-Nodes-10k-Weaken-Dummy -> nodes 10000  [weaken p=0 margin=60cp balance=80cp cand=5]
+  Stockfish-Nodes-10k-Weaken-Mild -> nodes 10000  [weaken p=0.1 margin=20cp balance=40cp cand=5]
+  Stockfish-Nodes-10k-Weaken-Moderate -> nodes 10000  [weaken p=0.25 margin=35cp balance=50cp cand=5]
+  Stockfish-Nodes-10k-Weaken-Temp -> nodes 10000  [weaken p=0.4 margin=60cp balance=60cp cand=5]
+  Stockfish-Nodes-10k-Weaken-Wide -> nodes 10000  [weaken p=0.3 margin=40cp balance=120cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Aggressive -> nodes 25000  [weaken p=0.5 margin=60cp balance=80cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Dummy -> nodes 25000  [weaken p=0 margin=60cp balance=80cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Mild -> nodes 25000  [weaken p=0.1 margin=20cp balance=40cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Moderate -> nodes 25000  [weaken p=0.25 margin=35cp balance=50cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Temp -> nodes 25000  [weaken p=0.4 margin=60cp balance=60cp cand=5]
+  Stockfish-Nodes-25k-Weaken-Wide -> nodes 25000  [weaken p=0.3 margin=40cp balance=120cp cand=5]
+Early-draw adjudication: after move 34, within +-20cp for 8 moves
+Early-resign adjudication: at or below -400cp for 3 moves
+game 1/1320 match 1/660: Stockfish-Nodes-10k-Weaken-Aggressive (W) vs Stockfish-Nodes-10k-Weaken-Dummy (B) -> white wins [early_resign] | 25 moves | W 1.10s B 0.13s | rnbq1rk1/pp2ppbp/2p3p1/5n2/3PN3/5NP1/PPP2PBP/R1BQ1RK1 w - - 0 1
+...
+
+Final standings:
+  #  Engine                                   Pts    W    D    L   Games   Rel.Elo
+  1  Stockfish-Nodes-25k-Weaken-Dummy       170.5  144   53   23     220    +214.8
+  2  Stockfish-Nodes-25k-Weaken-Mild        170.0  146   48   26     220    +212.6
+  3  Stockfish-Nodes-25k-Weaken-Moderate    148.5  117   63   40     220    +127.0
+  4  Stockfish-Nodes-25k-Weaken-Wide        129.0  105   48   67     220     +60.6
+  5  Stockfish-Nodes-25k-Weaken-Temp        128.0   95   66   59     220     +57.4
+  6  Stockfish-Nodes-25k-Weaken-Aggressive  109.5   84   51   85     220      -1.6
+  7  Stockfish-Nodes-10k-Weaken-Mild        103.0   68   70   82     220     -22.1
+  8  Stockfish-Nodes-10k-Weaken-Dummy        99.5   67   65   88     220     -33.3
+  9  Stockfish-Nodes-10k-Weaken-Moderate     84.0   54   60  106     220     -83.7
+ 10  Stockfish-Nodes-10k-Weaken-Temp         72.5   48   49  123     220    -123.4
+ 11  Stockfish-Nodes-10k-Weaken-Wide         58.5   36   45  139     220    -176.4
+ 12  Stockfish-Nodes-10k-Weaken-Aggressive   47.0   33   28  159     220    -226.4
+
+Games written to match.pgn
+      412.96 real      1557.35 user        51.62 sys
