@@ -299,3 +299,43 @@ pub enum SearchRequest {
     Nodes(u64),
     Depth(u32),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_cp_and_first_pv_move() {
+        let (mpv, score, mv) =
+            parse_info_line("depth 10 multipv 1 score cp 34 nodes 5 pv e2e4 e7e5").unwrap();
+        assert_eq!(mpv, 1);
+        assert_eq!(score, Some(34));
+        assert_eq!(mv.as_deref(), Some("e2e4"));
+    }
+
+    #[test]
+    fn multipv_defaults_to_one_and_negative_cp() {
+        let (mpv, score, _) = parse_info_line("depth 8 score cp -12 pv d2d4").unwrap();
+        assert_eq!(mpv, 1);
+        assert_eq!(score, Some(-12));
+    }
+
+    #[test]
+    fn second_pv_index_parsed() {
+        let (mpv, _, mv) = parse_info_line("multipv 2 score cp 5 pv g1f3 g8f6").unwrap();
+        assert_eq!(mpv, 2);
+        assert_eq!(mv.as_deref(), Some("g1f3"));
+    }
+
+    #[test]
+    fn mate_folds_to_large_magnitude() {
+        assert_eq!(parse_info_line("score mate 3 pv a2a4").unwrap().1, Some(MATE_CP));
+        assert_eq!(parse_info_line("score mate -2 pv a2a4").unwrap().1, Some(-MATE_CP));
+    }
+
+    #[test]
+    fn ignores_lines_without_score_or_pv() {
+        assert!(parse_info_line("string hello world").is_none());
+        assert!(parse_info_line("depth 1 currmove e2e4 currmovenumber 1").is_none());
+    }
+}

@@ -36,3 +36,36 @@ pub fn load_epd(path: &Path) -> Result<Vec<String>> {
     }
     Ok(positions)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_path(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("ctm_{}_{}.epd", tag, std::process::id()))
+    }
+
+    #[test]
+    fn loads_skips_comments_and_normalizes() {
+        let path = temp_path("load");
+        std::fs::write(
+            &path,
+            "# a comment\n\nrnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -\n",
+        )
+        .unwrap();
+        let v = load_epd(&path);
+        std::fs::remove_file(&path).ok();
+        let v = v.unwrap();
+        assert_eq!(v.len(), 1);
+        assert!(v[0].ends_with(" 0 1"));
+    }
+
+    #[test]
+    fn empty_file_is_error() {
+        let path = temp_path("empty");
+        std::fs::write(&path, "# only a comment\n").unwrap();
+        let r = load_epd(&path);
+        std::fs::remove_file(&path).ok();
+        assert!(r.is_err());
+    }
+}

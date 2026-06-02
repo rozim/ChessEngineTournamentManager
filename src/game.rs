@@ -489,3 +489,112 @@ fn finish(
         start_white_to_move,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn band_and_mate_checks() {
+        assert!(within_band(20, 20));
+        assert!(within_band(-20, 20));
+        assert!(!within_band(21, 20));
+        assert!(is_mate(MATE_CP));
+        assert!(is_mate(-MATE_CP));
+        assert!(!is_mate(500));
+    }
+
+    #[test]
+    fn starting_clock_only_for_time() {
+        assert_eq!(
+            starting_clock(SearchLimit::Time { base_ms: 5000, inc_ms: 100 }),
+            Some(5000)
+        );
+        assert_eq!(starting_clock(SearchLimit::Nodes(100)), None);
+        assert_eq!(starting_clock(SearchLimit::Depth(8)), None);
+    }
+
+    #[test]
+    fn increment_for_uses_own_inc_or_fallback() {
+        assert_eq!(increment_for(SearchLimit::Time { base_ms: 0, inc_ms: 200 }, 999), 200);
+        assert_eq!(increment_for(SearchLimit::Nodes(1), 999), 999);
+        assert_eq!(increment_for(SearchLimit::Depth(1), 999), 999);
+    }
+
+    #[test]
+    fn repetition_key_has_four_fields() {
+        let pos = shakmaty::Chess::default();
+        let key = repetition_key(&pos);
+        assert_eq!(key.split(' ').count(), 4);
+        assert!(key.starts_with("rnbqkbnr/pppppppp"));
+    }
+
+    fn result(cands: &[(&str, Option<i32>)]) -> SearchResult {
+        let candidates: Vec<Candidate> = cands
+            .iter()
+            .map(|(m, s)| Candidate { mv: (*m).to_string(), score: *s })
+            .collect();
+        SearchResult {
+            best: candidates[0].mv.clone(),
+            candidates,
+            elapsed: Duration::ZERO,
+        }
+    }
+
+    fn weaken(probability: f64, balance_cp: i32, margin_cp: i32, temperature: f64) -> WeakenConfig {
+        WeakenConfig { probability, margin_cp, candidates: 4, balance_cp, temperature }
+    }
+
+    #[test]
+    fn none_weaken_returns_best() {
+        let r = result(&[("e2e4", Some(10)), ("d2d4", Some(5))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        assert_eq!(choose_move(&r, None, &mut rng), "e2e4");
+    }
+
+    #[test]
+    fn imbalanced_position_returns_best() {
+        let r = result(&[("e2e4", Some(300)), ("d2d4", Some(295))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        assert_eq!(choose_move(&r, Some(weaken(1.0, 50, 30, 0.0)), &mut rng), "e2e4");
+    }
+
+    #[test]
+    fn balanced_position_deviates_at_probability_one() {
+        let r = result(&[("e2e4", Some(10)), ("d2d4", Some(0)), ("g1f3", Some(-5))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        let chosen = choose_move(&r, Some(weaken(1.0, 50, 30, 0.0)), &mut rng);
+        assert_ne!(chosen, "e2e4");
+        assert!(chosen == "d2d4" || chosen == "g1f3");
+    }
+
+    #[test]
+    fn no_alternative_within_margin_returns_best() {
+        let r = result(&[("e2e4", Some(10)), ("d2d4", Some(-90))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        assert_eq!(choose_move(&r, Some(weaken(1.0, 50, 30, 0.0)), &mut rng), "e2e4");
+    }
+
+    #[test]
+    fn mate_score_is_never_weakened() {
+        let r = result(&[("e2e4", Some(MATE_CP)), ("d2d4", Some(MATE_CP))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        assert_eq!(choose_move(&r, Some(weaken(1.0, 50, 30, 0.0)), &mut rng), "e2e4");
+    }
+
+    #[test]
+    fn probability_zero_returns_best() {
+        let r = result(&[("e2e4", Some(10)), ("d2d4", Some(5))]);
+        let mut rng = StdRng::seed_from_u64(1);
+        assert_eq!(choose_move(&r, Some(weaken(0.0, 50, 30, 0.0)), &mut rng), "e2e4");
+    }
+
+    #[test]
+    fn temperature_weighted_pick_is_eligible() {
+        let r = result(&[("a", Some(10)), ("b", Some(5)), ("c", Some(0))]);
+        let mut rng = StdRng::seed_from_u64(7);
+        let chosen = choose_move(&r, Some(weaken(1.0, 50, 30, 50.0)), &mut rng);
+        assert!(chosen == "b" || chosen == "c");
+    }
+}

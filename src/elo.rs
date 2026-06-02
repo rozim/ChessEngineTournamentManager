@@ -46,3 +46,39 @@ impl Standing {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn points_and_game_count() {
+        let mut s = Standing::new("e");
+        s.wins = 3;
+        s.draws = 2;
+        s.losses = 1;
+        assert_eq!(s.games(), 6);
+        assert_eq!(s.points(), 4.0);
+    }
+
+    #[test]
+    fn even_score_is_zero_elo() {
+        let mut s = Standing::new("e");
+        s.wins = 5;
+        s.losses = 5;
+        assert!(s.relative_elo().abs() < 1e-6);
+    }
+
+    #[test]
+    fn winning_record_is_positive_elo() {
+        let mut s = Standing::new("e");
+        s.wins = 8;
+        s.losses = 2;
+        assert!(s.relative_elo() > 0.0);
+    }
+
+    #[test]
+    fn no_games_is_zero_elo() {
+        assert_eq!(Standing::new("e").relative_elo(), 0.0);
+    }
+}

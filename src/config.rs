@@ -240,3 +240,70 @@ impl EngineConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(json: &str) -> Result<EngineConfig, serde_json::Error> {
+        serde_json::from_str(json)
+    }
+
+    #[test]
+    fn time_limit_normalizes_to_ms() {
+        let c = parse(r#"{"path":"/x","name":"x","limit":{"mode":"time","seconds":60,"increment":0.1}}"#).unwrap();
+        match c.search_limit() {
+            SearchLimit::Time { base_ms, inc_ms } => {
+                assert_eq!(base_ms, 60_000);
+                assert_eq!(inc_ms, 100);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn nodes_and_depth_parse() {
+        let n = parse(r#"{"path":"/x","name":"x","limit":{"mode":"nodes","nodes":1000}}"#).unwrap();
+        assert!(matches!(n.search_limit(), SearchLimit::Nodes(1000)));
+        let d = parse(r#"{"path":"/x","name":"x","limit":{"mode":"depth","depth":12}}"#).unwrap();
+        assert!(matches!(d.search_limit(), SearchLimit::Depth(12)));
+    }
+
+    #[test]
+    fn rejects_two_modes_in_one_limit() {
+        assert!(parse(r#"{"path":"/x","name":"x","limit":{"mode":"nodes","nodes":1,"depth":2}}"#).is_err());
+    }
+
+    #[test]
+    fn rejects_missing_required_field() {
+        assert!(parse(r#"{"path":"/x","name":"x","limit":{"mode":"time","seconds":1}}"#).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_nodes_and_unknown_mode() {
+        assert!(parse(r#"{"path":"/x","name":"x","limit":{"mode":"nodes","nodes":0}}"#).is_err());
+        assert!(parse(r#"{"path":"/x","name":"x","limit":{"mode":"clock","seconds":5}}"#).is_err());
+    }
+
+    #[test]
+    fn weaken_defaults_then_validates() {
+        let c = parse(r#"{"path":"/x","name":"x","limit":{"mode":"depth","depth":5},"weaken":{}}"#).unwrap();
+        let w = c.weaken.unwrap();
+        assert_eq!(w.candidates, 4);
+        assert_eq!(w.balance_cp, 50);
+        assert!(c.validate().is_ok());
+    }
+
+    #[test]
+    fn weaken_invalid_values_rejected() {
+        let bad = parse(r#"{"path":"/x","name":"x","limit":{"mode":"depth","depth":5},"weaken":{"candidates":1}}"#).unwrap();
+        assert!(bad.validate().is_err());
+        let bad2 = parse(r#"{"path":"/x","name":"x","limit":{"mode":"depth","depth":5},"weaken":{"probability":2.0}}"#).unwrap();
+        assert!(bad2.validate().is_err());
+    }
+
+    #[test]
+    fn weaken_unknown_field_rejected() {
+        assert!(parse(r#"{"path":"/x","name":"x","limit":{"mode":"depth","depth":5},"weaken":{"prob":0.1}}"#).is_err());
+    }
+}

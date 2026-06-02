@@ -108,3 +108,46 @@ fn movetext(game: &GameRecord) -> String {
 
     out.trim_end().to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::{GameRecord, GameResult, Termination};
+    use std::time::Duration;
+
+    fn record(sans: &[&str], start_fullmove: u32, white_first: bool) -> GameRecord {
+        GameRecord {
+            result: GameResult::Draw,
+            termination: Termination::EarlyDraw,
+            sans: sans.iter().map(|s| s.to_string()).collect(),
+            time_used: [Duration::ZERO; 2],
+            start_fullmove,
+            start_white_to_move: white_first,
+        }
+    }
+
+    #[test]
+    fn white_to_move_numbering() {
+        assert_eq!(movetext(&record(&["e4", "e5", "Nf3"], 1, true)), "1. e4 e5 2. Nf3");
+    }
+
+    #[test]
+    fn black_to_move_uses_ellipsis() {
+        assert_eq!(movetext(&record(&["Nc6", "Nf3"], 1, false)), "1... Nc6 2. Nf3");
+    }
+
+    #[test]
+    fn honors_starting_move_number() {
+        assert_eq!(movetext(&record(&["Kg1"], 34, true)), "34. Kg1");
+    }
+
+    #[test]
+    fn empty_movetext_is_empty() {
+        assert_eq!(movetext(&record(&[], 1, true)), "");
+    }
+
+    #[test]
+    fn escapes_quotes_and_backslashes() {
+        assert_eq!(escape(r#"a"b\c"#), r#"a\"b\\c"#);
+    }
+}
