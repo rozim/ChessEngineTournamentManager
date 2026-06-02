@@ -65,6 +65,11 @@ pub struct Args {
     #[arg(long, default_value_t = 3)]
     pub resign_moves: u32,
 
+    /// Log per-move adjudication diagnostics (scores and streak counters) to
+    /// stderr, including when an early draw/resign fires.
+    #[arg(long)]
+    pub debug_adjudication: bool,
+
     /// JSON configuration files, one per engine (two or more required).
     #[arg(required = true, num_args = 2..)]
     pub configs: Vec<PathBuf>,

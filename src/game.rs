@@ -21,6 +21,8 @@ const MAX_PLIES: u32 = 600;
 pub struct Adjudication {
     pub draw: DrawRule,
     pub resign: ResignRule,
+    /// Log per-move adjudication diagnostics to stderr.
+    pub debug: bool,
 }
 
 /// A game is declared a draw once it has reached `move_number`, and both
@@ -166,6 +168,7 @@ pub fn play_game(
     black: &mut Engine,
     start_fen: &str,
     adj: Adjudication,
+    game_no: u32,
 ) -> Result<GameRecord> {
     let fen: Fen = start_fen
         .parse()
@@ -299,9 +302,8 @@ pub fn play_game(
         *seen.entry(repetition_key(&pos)).or_insert(0) += 1;
         ply += 1;
 
-        // Early-resign adjudication: if a color's own latest score has stayed
-        // at/below the resign threshold long enough, that color loses. Checked
-        // for both colors, since the streak can complete on the opponent's ply.
+        // Update the early-resign streaks: consecutive plies each color's own
+        // latest score has been at/below the resign threshold.
         for color in [Color::White, Color::Black] {
             let losing = matches!(latest_score[idx(color)], Some(cp) if cp <= -adj.resign.cp);
             if losing {
@@ -309,17 +311,10 @@ pub fn play_game(
             } else {
                 losing_plies[idx(color)] = 0;
             }
-            if adj.resign.enabled && losing_plies[idx(color)] >= adj.resign.required_plies {
-                let result = match color {
-                    Color::White => GameResult::BlackWins,
-                    Color::Black => GameResult::WhiteWins,
-                };
-                return Ok(finish(result, Termination::EarlyResign, sans, time_used, start_fullmove, start_white_to_move));
-            }
         }
 
-        // Early-draw adjudication: require both engines' latest scores to stay
-        // within the equality band; any breakout resets the streak.
+        // Update the early-draw streak: consecutive plies both engines' latest
+        // scores stayed within the equality band.
         let both_balanced = match (latest_score[0], latest_score[1]) {
             (Some(w), Some(b)) => {
                 within_band(w, adj.draw.band_cp) && within_band(b, adj.draw.band_cp)
@@ -331,10 +326,57 @@ pub fn play_game(
         } else {
             in_band_plies = 0;
         }
+
+        if adj.debug {
+            let fmt = |s: Option<i32>| s.map_or("none".to_string(), |cp| cp.to_string());
+            eprintln!(
+                "[adj g{game_no}] ply {ply} move {fullmove} {mover} moved score={this} | latest W={lw} B={lb} | resign W={rw} B={rb} (need {rp}) | drawstreak {ds} (need {dp})",
+                fullmove = pos.fullmoves().get(),
+                mover = if side == Color::White { "W" } else { "B" },
+                this = fmt(score),
+                lw = fmt(latest_score[0]),
+                lb = fmt(latest_score[1]),
+                rw = losing_plies[0],
+                rb = losing_plies[1],
+                rp = adj.resign.required_plies,
+                ds = in_band_plies,
+                dp = adj.draw.required_plies,
+            );
+        }
+
+        // Early-resign: a color loses if its losing streak is long enough.
+        // Checked for both colors, since the streak can complete on the
+        // opponent's ply.
+        if adj.resign.enabled {
+            for color in [Color::White, Color::Black] {
+                if losing_plies[idx(color)] >= adj.resign.required_plies {
+                    if adj.debug {
+                        eprintln!(
+                            "[adj g{game_no}] EARLY_RESIGN: {} loses (its score <= -{}cp for {} plies); latest W={} B={}",
+                            if color == Color::White { "White" } else { "Black" },
+                            adj.resign.cp,
+                            losing_plies[idx(color)],
+                            latest_score[0].map_or("none".to_string(), |c| c.to_string()),
+                            latest_score[1].map_or("none".to_string(), |c| c.to_string()),
+                        );
+                    }
+                    let result = match color {
+                        Color::White => GameResult::BlackWins,
+                        Color::Black => GameResult::WhiteWins,
+                    };
+                    return Ok(finish(result, Termination::EarlyResign, sans, time_used, start_fullmove, start_white_to_move));
+                }
+            }
+        }
+
+        // Early-draw: both engines balanced for long enough, past the move gate.
         if adj.draw.enabled
             && pos.fullmoves().get() >= adj.draw.move_number
             && in_band_plies >= adj.draw.required_plies
         {
+            if adj.debug {
+                eprintln!("[adj g{game_no}] EARLY_DRAW: both within +-{}cp for {} plies", adj.draw.band_cp, in_band_plies);
+            }
             return Ok(finish(GameResult::Draw, Termination::EarlyDraw, sans, time_used, start_fullmove, start_white_to_move));
         }
     }

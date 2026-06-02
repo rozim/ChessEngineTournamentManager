@@ -146,7 +146,7 @@ pub fn run(
                     let record = {
                         let (white, black) =
                             pair_mut(&mut engines, task.white_idx, task.black_idx);
-                        play_game(white, black, opening, adj)?
+                        play_game(white, black, opening, adj, task.game_no)?
                     };
 
                     let white_id = engines[task.white_idx].id_name.clone();

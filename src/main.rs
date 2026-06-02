@@ -85,6 +85,7 @@ fn main() -> Result<()> {
             cp: args.resign_cp,
             required_plies: args.resign_moves.saturating_mul(2),
         },
+        debug: args.debug_adjudication,
     };
 
     // Total work: every unordered pair plays `mini_matches` mini-matches (one

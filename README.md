@@ -58,6 +58,7 @@ cargo run --release -- --mini-matches 2 --epd openings-gambits.epd \
 | `--no-resign` | off | disable early-resign (loss) adjudication |
 | `--resign-cp` | `400` | resign when an engine's score stays ≤ -this (centipawns) |
 | `--resign-moves` | `3` | consecutive full moves the losing score must hold |
+| `--debug-adjudication` | off | log per-move scores/streaks (and triggers) to stderr |
 | `<configs>...` | — | 2+ engine JSON config files |
 
 **Early-draw adjudication** (on by default) ends a game as a draw once it has
@@ -74,6 +75,12 @@ loser (`early_resign` termination), saving time converting won positions. A
 better score resets the streak; engines that don't report a score are never
 resigned. There is no minimum-move requirement for resignation, so be cautious
 with low thresholds on gambit openings.
+
+To see why a game was adjudicated, run with `--debug-adjudication`, which logs
+to stderr — for every ply — the side to move, its reported score, both
+engines' latest scores, and the resign/draw streak counters, plus a line when a
+trigger fires. If resignation fires too readily for your engines, raise
+`--resign-cp` (e.g. 600) and/or `--resign-moves`, or disable with `--no-resign`.
 
 With `--concurrency N`, each of the `N` workers runs its own set of engine
 processes (so roughly `N × engines` processes exist), and per-game stdout/PGN
