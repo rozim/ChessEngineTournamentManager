@@ -1,0 +1,5 @@
+{
+  "path": "/opt/homebrew/bin/lc0",
+  "name": "Lc0-100",
+  "limit": { "mode": "nodes", "nodes": 100 }
+}
